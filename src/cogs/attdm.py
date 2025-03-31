@@ -57,83 +57,77 @@ class AttdmCog(commands.Cog):
 
             await ctx.send("**Main Menu:**", view=MainMenuView(run_create_campaign, run_select_campaign))
 
-        async def show_action_menu():
-            """
-            Show the action menu with options for `roll_loot`, `add_character`, `add_loot_source`, and `list_loot_sources`.
-            """
-            class ActionMenuView(View):
-                def __init__(self):
-                    super().__init__(timeout=60)
-
-                    # Button for rolling loot
-                    self.roll_loot_button = Button(label="Roll Loot", style=discord.ButtonStyle.primary)
-                    self.roll_loot_button.callback = self.roll_loot_callback
-                    self.add_item(self.roll_loot_button)
-
-                    # Button for adding a character
-                    self.add_character_button = Button(label="Add Character", style=discord.ButtonStyle.primary)
-                    self.add_character_button.callback = self.add_character_callback
-                    self.add_item(self.add_character_button)
-
-                    # Button for adding loot sources
-                    self.add_loot_source_button = Button(label="Add Loot Source", style=discord.ButtonStyle.primary)
-                    self.add_loot_source_button.callback = self.add_loot_source_callback
-                    self.add_item(self.add_loot_source_button)
-
-                    # Button for listing loot sources
-                    self.list_loot_sources_button = Button(label="List Loot Sources", style=discord.ButtonStyle.primary)
-                    self.list_loot_sources_button.callback = self.list_loot_sources_callback
-                    self.add_item(self.list_loot_sources_button)
-
-                async def roll_loot_callback(self, interaction: discord.Interaction):
-                    await interaction.response.defer()
-                    await self.stop()
-                    await self.run_roll_loot(ctx)
-
-                async def add_character_callback(self, interaction: discord.Interaction):
-                    await interaction.response.defer()
-                    await self.stop()
-                    await self.run_add_character(ctx)
-
-                async def add_loot_source_callback(self, interaction: discord.Interaction):
-                    await interaction.response.defer()
-                    await self.stop()
-                    await self.run_add_loot_source(ctx)
-
-                async def list_loot_sources_callback(self, interaction: discord.Interaction):
-                    await interaction.response.defer()
-                    await self.stop()
-                    await self.run_list_loot_sources(ctx)
-
-            await ctx.send("**Action Menu:**", view=ActionMenuView())
 
         # Helper methods to run the commands
         async def run_create_campaign(ctx):
             await self.create_campaign(ctx)
-            await show_action_menu()
+            await self.show_action_menu(ctx)
 
         async def run_select_campaign(ctx):
             await self.select_campaign(ctx)
-            await show_action_menu()
-
-        async def run_roll_loot(ctx):
-            await self.roll_loot(ctx)
-            await show_action_menu()
-
-        async def run_add_character(ctx):
-            await self.add_character(ctx)
-            await show_action_menu()
-
-        async def run_add_loot_source(ctx):
-            await self.add_loot_source(ctx)
-            await show_action_menu()
-
-        async def run_list_loot_sources(ctx):
-            await self.list_loot_sources(ctx)
-            await show_action_menu()
 
         # Start by showing the main menu
         await show_main_menu()
+        
+    async def show_action_menu(self, ctx):
+        """
+        Show the action menu with options for `roll_loot`, `add_character`, `add_loot_source`, and `list_loot_sources`.
+        """
+        class ActionMenuView(View):
+            def __init__(self, cog):
+                super().__init__(timeout=60)
+                self.cog = cog
+
+                # Button for rolling loot
+                self.roll_loot_button = Button(label="Roll Loot", style=discord.ButtonStyle.primary)
+                self.roll_loot_button.callback = self.roll_loot_callback
+                self.add_item(self.roll_loot_button)
+
+                # Button for adding a character
+                self.add_character_button = Button(label="Add Character", style=discord.ButtonStyle.primary)
+                self.add_character_button.callback = self.add_character_callback
+                self.add_item(self.add_character_button)
+
+                # Button for adding loot sources
+                self.add_loot_source_button = Button(label="Add Loot Source", style=discord.ButtonStyle.primary)
+                self.add_loot_source_button.callback = self.add_loot_source_callback
+                self.add_item(self.add_loot_source_button)
+
+                # Button for listing loot sources
+                self.list_loot_sources_button = Button(label="List Loot Sources", style=discord.ButtonStyle.primary)
+                self.list_loot_sources_button.callback = self.list_loot_sources_callback
+                self.add_item(self.list_loot_sources_button)
+
+                # Button for quitting the action menu
+                self.quit_button = Button(label="Quit", style=discord.ButtonStyle.danger)
+                self.quit_button.callback = self.quit_callback
+                self.add_item(self.quit_button)
+
+            async def roll_loot_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.roll_loot(ctx)
+                await self.cog.show_action_menu(ctx)
+
+            async def add_character_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.add_character(ctx)
+                await self.cog.show_action_menu(ctx)
+
+            async def add_loot_source_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.add_loot_source(ctx)
+                await self.cog.show_action_menu(ctx)
+
+            async def list_loot_sources_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.list_loot_sources(ctx)
+                await self.cog.show_action_menu(ctx)
+
+            async def quit_callback(self, interaction: discord.Interaction):
+                await interaction.response.send_message("Ending the dnd session.", ephemeral=True)
+                self.stop()
+
+        await ctx.send("**Action Menu:**", view=ActionMenuView(self))
 
     @commands.command(name="create_campaign")
     async def create_campaign(self, ctx):
@@ -198,22 +192,41 @@ class AttdmCog(commands.Cog):
             if response.status_code == 200:
                 campaigns = response.json()
                 if campaigns:
-                    # Create a view with buttons for each campaign
-                    view = View()
-                    for campaign in campaigns:
-                        campaign_id, campaign_name, dm_name, _ = campaign
-                        button = Button(label=f"{campaign_name} (DM: {dm_name})", style=discord.ButtonStyle.primary)
+                    class SelectCampaignView(View):
+                        def __init__(self, cog):
+                            super().__init__(timeout=60)
+                            self.cog = cog  # Reference to the AttdmCog instance
+                            self.selected_campaign = None  # Store the selected campaign
 
-                        # Define the callback for the button
-                        async def button_callback(interaction: discord.Interaction, campaign_id=campaign_id):
-                            self.user_sessions[ctx.author.id] = int(campaign_id)
-                            await interaction.response.send_message(f"Campaign '{campaign_name}' selected! (ID: {campaign_id})", ephemeral=True)
+                            for campaign in campaigns:
+                                campaign_id, campaign_name, dm_name, _ = campaign
+                                button = Button(label=f"{campaign_name} (DM: {dm_name})", style=discord.ButtonStyle.primary)
 
-                        button.callback = button_callback
-                        view.add_item(button)
+                                # Define the callback for the button
+                                async def button_callback(interaction: discord.Interaction, campaign_id=campaign_id):
+                                    self.cog.user_sessions[ctx.author.id] = int(campaign_id)
+                                    self.selected_campaign = campaign_id
+                                    await interaction.response.send_message(
+                                        f"Campaign '{campaign_name}' selected! (ID: {campaign_id})", ephemeral=True
+                                    )
+                                    self.stop()  # Stop the view to continue execution
 
-                    # Send the message with the buttons
+                                button.callback = button_callback
+                                self.add_item(button)
+
+                    # Create the view and send the campaign selection message
+                    view = SelectCampaignView(self)
                     await ctx.send("**Select a campaign:**", view=view)
+
+                    # Wait for the user to make a selection or for the view to timeout
+                    await view.wait()
+
+                    # Check if a campaign was selected
+                    if view.selected_campaign:
+                        # Transition to the action menu after a campaign is selected
+                        await self.show_action_menu(ctx)
+                    else:
+                        await ctx.send("No campaign selected. Returning to the main menu.")
                 else:
                     await ctx.send("No campaigns found.")
             else:
@@ -419,6 +432,9 @@ class AttdmCog(commands.Cog):
                     player_channel = self.bot.get_channel(int(player_channel_id))
                     if player_channel:
                         await player_channel.send(f"- {selected_pc} | {selected_loot}")
+                        del self.user_sessions["selected_loot"]
+                        del self.user_sessions["character_name"]
+
                     else:
                         await ctx.send("Player channel not found.")
             else:
@@ -444,87 +460,70 @@ class AttdmCog(commands.Cog):
         # Define available loot sources
         available_sources = ["DMG'24", "PHB'24", "ERLW", "TCE", "XGE"]
 
-        # Create a view with a Select dropdown and a Button
-        class LootSourceView(View):
-            def __init__(self, api_base_url, campaign_id):
+        # Create a view with buttons for each loot source
+        class LootSourceButtonView(View):
+            def __init__(self, api_base_url, campaign_id, available_sources):
                 super().__init__(timeout=60)
-                self.campaign_id = campaign_id
                 self.api_base_url = api_base_url
+                self.campaign_id = campaign_id
                 self.selected_sources = []
 
-                # Add a Select dropdown for loot sources
-                self.select = Select(
-                    placeholder="Select loot sources...",
-                    options=[
-                        discord.SelectOption(label=source, value=source) for source in available_sources
-                    ],
-                    min_values=1,  # Minimum number of selections
-                    max_values=len(available_sources),  # Maximum number of selections
-                )
-                self.add_item(self.select)
+                # Add a button for each loot source
+                for source in available_sources:
+                    button = Button(label=source, style=discord.ButtonStyle.primary)
+                    button.callback = self.create_button_callback(source)
+                    self.add_item(button)
 
-                # Add a Button to submit the selected sources
-                self.action_button = Button(label="Select", style=discord.ButtonStyle.primary)
-                self.action_button.callback = self.select_callback
-                self.add_item(self.action_button)
+                # Add a submit button
+                self.submit_button = Button(label="Submit", style=discord.ButtonStyle.success)
+                self.submit_button.callback = self.submit_callback
+                self.add_item(self.submit_button)
 
-            async def select_callback(self, interaction: discord.Interaction):
-                # Store the selected loot sources
-                self.selected_sources = self.select.values
+            def create_button_callback(self, source):
+                async def button_callback(interaction: discord.Interaction):
+                    if source in self.selected_sources:
+                        self.selected_sources.remove(source)
+                        await interaction.response.send_message(f"Removed {source} from selection.", ephemeral=True)
+                    else:
+                        self.selected_sources.append(source)
+                        await interaction.response.send_message(f"Added {source} to selection.", ephemeral=True)
+
+                return button_callback
+
+            async def submit_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer(ephemeral=True)
+
                 if not self.selected_sources:
-                    await interaction.response.send_message(
-                        "No loot sources selected. Please select at least one.", ephemeral=True
-                    )
-                    return
-
-                # Update the button to say "Add" and change its functionality
-                self.action_button.label = "Add"
-                self.action_button.callback = self.add_callback
-                await interaction.response.edit_message(
-                    content=f"Selected loot sources: {', '.join(self.selected_sources)}",
-                    view=self
-                )
-
-            async def add_callback(self, interaction: discord.Interaction):
-                if not self.selected_sources:
-                    await interaction.response.send_message(
-                        "No loot sources selected. Please select at least one.", ephemeral=True
-                    )
+                    await interaction.response.send_message("No loot sources selected. Please select at least one.", ephemeral=True)
                     return
 
                 # Prepare the API URL and payload
                 url = f"{self.api_base_url}/loot/{self.campaign_id}/sources/"
-                payload = self.selected_sources  # Send the list directly as the payload
-
-                # Log the payload for debugging
-                logging.info(f"Payload for adding loot sources: {payload}")
+                payload = self.selected_sources
 
                 try:
                     # Send the POST request to the API
                     response = requests.post(url, json=payload)
-                    logging.info(f"API Response: {response.status_code} - {response.text}")
-
                     if response.status_code == 200:
-                        await interaction.response.send_message(
+                        await interaction.followup.send(
                             f"Loot sources added successfully to campaign '{self.campaign_id}'!", ephemeral=True
                         )
                     else:
                         error_detail = response.json().get("detail", "Unknown error")
-                        await interaction.response.send_message(
+                        await interaction.followup_send(
                             f"Failed to add loot sources: {error_detail}", ephemeral=True
                         )
                 except Exception as e:
-                    await interaction.response.send_message(
+                    await interaction.followup.send(
                         f"An error occurred while adding loot sources: {e}", ephemeral=True
                     )
-                    logging.exception("Exception occurred while adding loot sources")
 
-                # Stop the view after the button is clicked
+                # Stop the view after submission
                 self.stop()
 
-        # Pass the api_base_url to the LootSourceView
-        view = LootSourceView(self.api_base_url, campaign_id)
-        await ctx.send("Select loot sources to add to the campaign:", view=view)
+        # Create the view and send the message
+        view = LootSourceButtonView(self.api_base_url, campaign_id, available_sources)
+        await ctx.send("Click on the buttons to select loot sources. Click 'Submit' when done:", view=view)
 
         # Wait for the view to timeout or be stopped
         await view.wait()
