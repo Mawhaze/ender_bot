@@ -23,10 +23,11 @@ def main():
 
     # Load cogs from the src/cogs/ directory
     async def load_cogs():
-        for filename in os.listdir("./src/cogs"):
+        cogs_dir = os.path.join(os.path.dirname(__file__), "cogs")
+        for filename in os.listdir(cogs_dir):
             if filename.endswith(".py"):
                 try:
-                    await bot.load_extension(f"src.cogs.{filename[:-3]}")
+                    await bot.load_extension(f"cogs.{filename[:-3]}")
                     print(f"Loaded cog: {filename}")
                 except Exception as e:
                     print(f"Failed to load cog {filename}: {e}")
@@ -41,8 +42,11 @@ def main():
 
     # Run the bot
     async def start_bot():
-        await load_cogs()
-        await bot.start(discord_token)
+        try:
+            await load_cogs()
+            await bot.start(discord_token)
+        except Exception as e:
+            logger.error(f"Error starting bot: {e}")
 
     asyncio.run(start_bot())
 
