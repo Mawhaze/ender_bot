@@ -46,7 +46,7 @@ def main():
             await load_cogs()
             await bot.start(discord_token)
         except Exception as e:
-            logger.error(f"Error starting bot: {e}")
+            logging.error(f"Error starting bot: {e}")
 
     asyncio.run(start_bot())
 

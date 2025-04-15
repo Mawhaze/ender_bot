@@ -1,0 +1,19 @@
+replicaCount: 1
+
+image:
+  repository: mawhaze/ender-bot
+  tag: "latest"
+  pullPolicy: Always
+
+service:
+  type: ClusterIP
+  port: 80
+
+env:
+  logLevel: "INFO"
+  apiUrl: "https://attdm:8000"
+
+resources: {}
+nodeSelector: {}
+tolerations: []
+affinity: {}
