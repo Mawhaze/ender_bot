@@ -1,7 +1,7 @@
 replicaCount: 1
 
 image:
-  repository: mawhaze/ender-bot
+  repository: mawhaze/ender_bot
   tag: "latest"
   pullPolicy: Always
 
@@ -10,8 +10,11 @@ service:
   port: 80
 
 env:
-  logLevel: "INFO"
-  apiUrl: "https://attdm:8000"
+  logLevel: DEBUG
+  apiUrl: https://attdm.staging.mawhaze.dev
+
+imagePullSecrets:
+  - name: docker-auth
 
 resources: {}
 nodeSelector: {}
