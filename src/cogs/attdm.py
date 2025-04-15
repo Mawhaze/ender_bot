@@ -8,7 +8,11 @@ from discord.ext import commands
 from discord.ui import Button, Select, View
 
 # Configure logging
-logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
+logging.basicConfig(
+    filename=os.getenv("LOG_FILE", "tmp/logs/ender-bot.log"),
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+    )
 
 class AttdmCog(commands.Cog):
     """
