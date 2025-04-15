@@ -7,7 +7,8 @@ import requests
 from discord.ext import commands
 from discord.ui import Button, Select, View
 
-logging.basicConfig(level=logging.INFO)
+# Configure logging
+logging.basicConfig(level=logging.INFO, format="%(asctime)s - %(levelname)s - %(message)s")
 
 class AttdmCog(commands.Cog):
     """
@@ -57,7 +58,6 @@ class AttdmCog(commands.Cog):
 
             await ctx.send("**Main Menu:**", view=MainMenuView(run_create_campaign, run_select_campaign))
 
-
         # Helper methods to run the commands
         async def run_create_campaign(ctx):
             await self.create_campaign(ctx)
@@ -68,7 +68,7 @@ class AttdmCog(commands.Cog):
 
         # Start by showing the main menu
         await show_main_menu()
-        
+
     async def show_action_menu(self, ctx):
         """
         Show the action menu with options for `roll_loot`, `add_character`, `add_loot_source`, and `list_loot_sources`.
@@ -146,6 +146,7 @@ class AttdmCog(commands.Cog):
             campaign_name = campaign_name_msg.content
         except asyncio.TimeoutError:
             await ctx.send("You took too long to respond. Campaign creation canceled.")
+            logging.warning("Campaign creation timed out.")
             return
 
         # Prompt for the DM name
@@ -156,6 +157,7 @@ class AttdmCog(commands.Cog):
             dm_name = dm_name_msg.content
         except asyncio.TimeoutError:
             await ctx.send("You took too long to respond. Campaign creation canceled.")
+            logging.warning("DM name input timed out.")
             return
 
         # Prepare the API URL and payload
@@ -168,17 +170,21 @@ class AttdmCog(commands.Cog):
 
         try:
             # Send the POST request to the API
+            logging.info(f"Sending POST request to {url} with payload: {payload}")
             response = requests.post(url, json=payload)
             if response.status_code == 200:
                 data = response.json()
                 campaign_id = data.get("campaign_id")
                 self.user_sessions[ctx.author.id] = int(campaign_id)
                 await ctx.send(f"Campaign '{campaign_name}' created successfully! (ID: {campaign_id})")
+                logging.info(f"Campaign '{campaign_name}' created successfully with ID: {campaign_id}")
             else:
                 error_detail = response.json().get("detail", "Unknown error")
                 await ctx.send(f"Failed to create campaign: {error_detail}")
+                logging.error(f"Failed to create campaign: {error_detail}")
         except Exception as e:
             await ctx.send(f"An error occurred while creating the campaign: {e}")
+            logging.error(f"An error occurred while creating the campaign: {e}")
 
     @commands.command(name="select_campaign")
     async def select_campaign(self, ctx):
@@ -188,6 +194,7 @@ class AttdmCog(commands.Cog):
         """
         url = f"{self.api_base_url}/campaigns/"
         try:
+            logging.info(f"Fetching campaigns from {url}")
             response = requests.get(url)
             if response.status_code == 200:
                 campaigns = response.json()
@@ -209,6 +216,7 @@ class AttdmCog(commands.Cog):
                                     await interaction.response.send_message(
                                         f"Campaign '{campaign_name}' selected! (ID: {campaign_id})", ephemeral=True
                                     )
+                                    logging.info(f"Campaign '{campaign_name}' selected with ID: {campaign_id}")
                                     self.stop()  # Stop the view to continue execution
 
                                 button.callback = button_callback
@@ -227,12 +235,17 @@ class AttdmCog(commands.Cog):
                         await self.show_action_menu(ctx)
                     else:
                         await ctx.send("No campaign selected. Returning to the main menu.")
+                        logging.warning("No campaign selected.")
                 else:
                     await ctx.send("No campaigns found.")
+                    logging.warning("No campaigns found.")
             else:
-                await ctx.send(f"Failed to list campaigns: {response.json().get('detail', 'Unknown error')}")
+                error_detail = response.json().get("detail", "Unknown error")
+                await ctx.send(f"Failed to list campaigns: {error_detail}")
+                logging.error(f"Failed to list campaigns: {error_detail}")
         except Exception as e:
             await ctx.send(f"An error occurred: {e}")
+            logging.error(f"An error occurred while listing campaigns: {e}")
 
     @commands.command(name="current_campaign")
     async def current_campaign(self, ctx):
@@ -240,10 +253,12 @@ class AttdmCog(commands.Cog):
         Display the currently selected campaign for the user.
         Usage: !current_campaign
         """
-        campaign_id = int(self.user_sessions.get(ctx.author.id))
+        campaign_id = self.user_sessions.get(ctx.author.id)
         if campaign_id:
+            logging.info(f"User {ctx.author.id} is currently in campaign {campaign_id}.")
             await ctx.send(f"Your current campaign ID is: {campaign_id}")
         else:
+            logging.warning(f"User {ctx.author.id} has not selected a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
 
     @commands.command(name="add_character")
@@ -256,6 +271,7 @@ class AttdmCog(commands.Cog):
         # Check if the user has already selected a campaign
         campaign_id = self.user_sessions.get(ctx.author.id)
         if not campaign_id:
+            logging.warning(f"User {ctx.author.id} attempted to add a character without selecting a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
@@ -268,7 +284,9 @@ class AttdmCog(commands.Cog):
         try:
             character_id_msg = await self.bot.wait_for("message", timeout=60.0, check=check)
             character_id = character_id_msg.content
+            logging.info(f"User {ctx.author.id} provided character ID: {character_id}.")
         except asyncio.TimeoutError:
+            logging.warning(f"User {ctx.author.id} took too long to provide a character ID.")
             await ctx.send("You took too long to respond. Adding character to campaign canceled.")
             return
 
@@ -281,13 +299,17 @@ class AttdmCog(commands.Cog):
 
         try:
             # Send the POST request to the API
+            logging.info(f"Sending POST request to {url} with payload: {payload}")
             response = requests.post(url, json=payload)
             if response.status_code == 200:
+                logging.info(f"Character '{character_id}' added to campaign '{campaign_id}' successfully.")
                 await ctx.send(f"Character '{character_id}' added to campaign '{campaign_id}' successfully!")
             else:
                 error_detail = response.json().get("detail", "Unknown error")
+                logging.error(f"Failed to add character to campaign: {error_detail}")
                 await ctx.send(f"Failed to add character to campaign: {error_detail}")
         except Exception as e:
+            logging.error(f"An error occurred while adding the character to the campaign: {e}")
             await ctx.send(f"An error occurred while adding the character to the campaign: {e}")
 
     @commands.command(name="select_player")
@@ -299,15 +321,18 @@ class AttdmCog(commands.Cog):
         # Get the currently selected campaign ID for the user
         campaign_id = self.user_sessions.get(ctx.author.id)
         if not campaign_id:
+            logging.warning(f"User {ctx.author.id} attempted to select a player without selecting a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
         url = f"{self.api_base_url}/players/{campaign_id}"
         try:
+            logging.info(f"Fetching players for campaign {campaign_id} from {url}.")
             response = requests.get(url)
             if response.status_code == 200:
                 pcs = response.json()
                 if pcs:
+                    logging.info(f"Players found for campaign {campaign_id}: {pcs}.")
                     # Create a view with buttons for each player
                     view = View(timeout=60)  # Set a timeout for the view
                     player_selected = False  # Flag to track if a player is selected
@@ -319,6 +344,7 @@ class AttdmCog(commands.Cog):
                         # Define the callback for the button
                         async def button_callback(interaction: discord.Interaction, pc_name=pc_name):
                             self.user_sessions["character_name"] = pc_name
+                            logging.info(f"User {ctx.author.id} selected player '{pc_name}'.")
                             await interaction.response.send_message(f"Player '{pc_name}' selected!", ephemeral=True)
                             nonlocal player_selected
                             player_selected = True  # Set the flag to True
@@ -336,15 +362,20 @@ class AttdmCog(commands.Cog):
                     # Check if a player was selected
                     selected_pc = self.user_sessions.get("character_name")
                     if not player_selected:
+                        logging.warning(f"User {ctx.author.id} did not select a player.")
                         await ctx.send("No player character selected.")
                         return
                 else:
+                    logging.warning(f"No players found for campaign {campaign_id}.")
                     await ctx.send("No players found in the selected campaign.")
                     return
             else:
-                await ctx.send(f"Failed to list players: {response.json().get('detail', 'Unknown error')}")
+                error_detail = response.json().get("detail", "Unknown error")
+                logging.error(f"Failed to list players for campaign {campaign_id}: {error_detail}")
+                await ctx.send(f"Failed to list players: {error_detail}")
                 return
         except Exception as e:
+            logging.error(f"An error occurred while listing players for campaign {campaign_id}: {e}")
             await ctx.send(f"An error occurred: {e}")
             return
 
@@ -357,38 +388,45 @@ class AttdmCog(commands.Cog):
         # Check if the command is being run in the correct channel
         dm_channel_id = os.getenv("DM_CHANNEL")  # Get the DM channel ID from the environment variable
         if not dm_channel_id:
+            logging.error("DM_CHANNEL environment variable is not set.")
             await ctx.send("DM_CHANNEL environment variable is not set.")
             return
 
         if str(ctx.channel.id) != dm_channel_id:
+            logging.warning(f"Command attempted in incorrect channel: {ctx.channel.id}")
             await ctx.send("This command can only be run in the designated DM channel.")
             return
 
         # Get the currently selected campaign ID for the user
         campaign_id = self.user_sessions.get(ctx.author.id)
         if not campaign_id:
+            logging.warning(f"User {ctx.author.id} attempted to roll loot without selecting a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
         # Get the currently selected player character for the user
         selected_pc = self.user_sessions.get("character_name")
         if not selected_pc:
+            logging.warning(f"User {ctx.author.id} attempted to roll loot without selecting a player.")
             await ctx.send("You have not selected a player character yet.")
             # Run the select_player command
             await self.select_player(ctx)
             # Recheck if a player has been selected
             selected_pc = self.user_sessions.get("character_name")
             if not selected_pc:
+                logging.warning(f"User {ctx.author.id} did not select a player after being prompted.")
                 await ctx.send("No player character selected. Aborting loot roll.")
                 return
 
         # Call the roll loot API
         url = f"{self.api_base_url}/loot/{campaign_id}/roll/?character_name={selected_pc}"
         try:
+            logging.info(f"Rolling loot for campaign {campaign_id} and player {selected_pc} via {url}.")
             response = requests.post(url)
             if response.status_code == 200:
                 loot, item_urls = response.json()
                 if not loot:
+                    logging.info(f"No loot rolled for campaign {campaign_id} and player {selected_pc}.")
                     await ctx.send("No loot was rolled.")
                     return
 
@@ -402,6 +440,7 @@ class AttdmCog(commands.Cog):
                     # Define the callback for the button
                     async def button_callback(interaction: discord.Interaction, item=item):
                         self.user_sessions["selected_loot"] = item  # Save the selected loot item
+                        logging.info(f"User {ctx.author.id} selected loot item: {item}.")
                         await interaction.response.send_message(f"You selected: {item}", ephemeral=True)
                         nonlocal loot_selected
                         loot_selected = True  # Set the flag to True
@@ -421,10 +460,12 @@ class AttdmCog(commands.Cog):
                 # Check if loot was selected
                 selected_loot = self.user_sessions.get("selected_loot")
                 if not loot_selected:
+                    logging.warning(f"User {ctx.author.id} did not select any loot item.")
                     await ctx.send("No loot item selected.")
                     return
 
                 # Confirm the selected loot
+                logging.info(f"User {ctx.author.id} confirmed loot item: {selected_loot}.")
                 await ctx.send(f"You selected the loot item: {selected_loot}")
                 # Send the selected loot to the player channel
                 player_channel_id = os.getenv("PLAYER_CHANNEL")  # Get the player channel ID from the environment variable
@@ -432,14 +473,18 @@ class AttdmCog(commands.Cog):
                     player_channel = self.bot.get_channel(int(player_channel_id))
                     if player_channel:
                         await player_channel.send(f"- {selected_pc} | {selected_loot}")
+                        logging.info(f"Loot item '{selected_loot}' sent to player channel for player {selected_pc}.")
                         del self.user_sessions["selected_loot"]
                         del self.user_sessions["character_name"]
-
                     else:
+                        logging.error("Player channel not found.")
                         await ctx.send("Player channel not found.")
             else:
-                await ctx.send(f"Failed to roll loot: {response.json().get('detail', 'Unknown error')}")
+                error_detail = response.json().get("detail", "Unknown error")
+                logging.error(f"Failed to roll loot: {error_detail}")
+                await ctx.send(f"Failed to roll loot: {error_detail}")
         except Exception as e:
+            logging.error(f"An error occurred while rolling loot: {e}")
             await ctx.send(f"An error occurred: {e}")
 
     @commands.command(name="add_loot_source")
@@ -451,11 +496,9 @@ class AttdmCog(commands.Cog):
         # Check if the user has already selected a campaign
         campaign_id = self.user_sessions.get(ctx.author.id)
         if not campaign_id:
+            logging.warning(f"User {ctx.author.id} attempted to add loot sources without selecting a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
-
-        # Ensure campaign_id is an integer
-        campaign_id = int(campaign_id)
 
         # Define available loot sources
         available_sources = ["DMG'24", "PHB'24", "ERLW", "TCE", "XGE"]
@@ -483,9 +526,11 @@ class AttdmCog(commands.Cog):
                 async def button_callback(interaction: discord.Interaction):
                     if source in self.selected_sources:
                         self.selected_sources.remove(source)
+                        logging.info(f"User {ctx.author.id} removed loot source: {source}.")
                         await interaction.response.send_message(f"Removed {source} from selection.", ephemeral=True)
                     else:
                         self.selected_sources.append(source)
+                        logging.info(f"User {ctx.author.id} added loot source: {source}.")
                         await interaction.response.send_message(f"Added {source} to selection.", ephemeral=True)
 
                 return button_callback
@@ -494,7 +539,8 @@ class AttdmCog(commands.Cog):
                 await interaction.response.defer(ephemeral=True)
 
                 if not self.selected_sources:
-                    await interaction.response.send_message("No loot sources selected. Please select at least one.", ephemeral=True)
+                    logging.warning(f"User {ctx.author.id} submitted without selecting any loot sources.")
+                    await interaction.followup.send("No loot sources selected. Please select at least one.", ephemeral=True)
                     return
 
                 # Prepare the API URL and payload
@@ -503,17 +549,21 @@ class AttdmCog(commands.Cog):
 
                 try:
                     # Send the POST request to the API
+                    logging.info(f"Sending POST request to {url} with payload: {payload}")
                     response = requests.post(url, json=payload)
                     if response.status_code == 200:
+                        logging.info(f"Loot sources added successfully to campaign '{self.campaign_id}'.")
                         await interaction.followup.send(
                             f"Loot sources added successfully to campaign '{self.campaign_id}'!", ephemeral=True
                         )
                     else:
                         error_detail = response.json().get("detail", "Unknown error")
-                        await interaction.followup_send(
+                        logging.error(f"Failed to add loot sources: {error_detail}")
+                        await interaction.followup.send(
                             f"Failed to add loot sources: {error_detail}", ephemeral=True
                         )
                 except Exception as e:
+                    logging.error(f"An error occurred while adding loot sources: {e}")
                     await interaction.followup.send(
                         f"An error occurred while adding loot sources: {e}", ephemeral=True
                     )
@@ -528,6 +578,7 @@ class AttdmCog(commands.Cog):
         # Wait for the view to timeout or be stopped
         await view.wait()
         if not view.is_finished():
+            logging.warning(f"User {ctx.author.id} took too long to respond for adding loot sources.")
             await ctx.send("You took too long to respond. Adding loot sources canceled.")
 
     @commands.command(name="list_loot_sources")
@@ -539,6 +590,7 @@ class AttdmCog(commands.Cog):
         # Check if the user has already selected a campaign
         campaign_id = self.user_sessions.get(ctx.author.id)
         if not campaign_id:
+            logging.warning(f"User {ctx.author.id} attempted to list loot sources without selecting a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
@@ -547,19 +599,24 @@ class AttdmCog(commands.Cog):
 
         try:
             # Send the GET request to the API
+            logging.info(f"Fetching loot sources for campaign {campaign_id} from {url}.")
             response = requests.get(url)
             if response.status_code == 200:
                 loot_sources = response.json()
                 if loot_sources:
                     # Format the loot sources into a readable list
                     formatted_sources = "\n".join(f"- {source}" for source in loot_sources)
+                    logging.info(f"Loot sources for campaign {campaign_id}: {formatted_sources}")
                     await ctx.send(f"**Loot Sources for Campaign {campaign_id}:**\n{formatted_sources}")
                 else:
+                    logging.info(f"No loot sources found for campaign {campaign_id}.")
                     await ctx.send(f"No loot sources found for campaign {campaign_id}.")
             else:
                 error_detail = response.json().get("detail", "Unknown error")
+                logging.error(f"Failed to list loot sources for campaign {campaign_id}: {error_detail}")
                 await ctx.send(f"Failed to list loot sources: {error_detail}")
         except Exception as e:
+            logging.error(f"An error occurred while listing loot sources for campaign {campaign_id}: {e}")
             await ctx.send(f"An error occurred while listing loot sources: {e}")
 
 async def setup(bot):
