@@ -329,7 +329,7 @@ class AttdmCog(commands.Cog):
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
-        url = f"{self.api_base_url}/players/{campaign_id}"
+        url = f"{self.api_base_url}/players/{campaign_id}/"
         try:
             logging.info(f"Fetching players for campaign {campaign_id} from {url}.")
             response = requests.get(url)
