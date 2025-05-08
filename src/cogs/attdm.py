@@ -36,7 +36,7 @@ class AttdmCog(commands.Cog):
             """
             class MainMenuView(View):
                 def __init__(self, run_create_campaign, run_select_campaign):
-                    super().__init__(timeout=60)
+                    super().__init__(timeout=300)
                     self.run_create_campaign = run_create_campaign
                     self.run_select_campaign = run_select_campaign
 
@@ -79,7 +79,7 @@ class AttdmCog(commands.Cog):
         """
         class ActionMenuView(View):
             def __init__(self, cog):
-                super().__init__(timeout=60)
+                super().__init__(timeout=None)
                 self.cog = cog
 
                 # Button for rolling loot
