@@ -5,7 +5,7 @@ import logging
 import os
 import requests
 from discord.ext import commands
-from discord.ui import Button, Select, View
+from discord.ui import Button, View
 
 # Configure logging
 logging.basicConfig(
@@ -625,3 +625,4 @@ class AttdmCog(commands.Cog):
 
 async def setup(bot):
     await bot.add_cog(AttdmCog(bot))
+    logging.info("AttdmCog loaded successfully.")

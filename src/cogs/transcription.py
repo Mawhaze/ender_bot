@@ -1,0 +1,87 @@
+import discord
+import json
+import os
+import logging
+import requests
+
+from datetime import datetime
+from discord.ext import commands
+from discord.ui import Button, View
+
+
+# Configure logging
+logging.basicConfig(
+    filename=os.getenv("LOG_FILE", "tmp/logs/ender-bot.log"),
+    level=logging.INFO,
+    format="%(asctime)s - %(levelname)s - %(message)s"
+    )
+
+class TranscribeCog(commands.Cog):
+    """
+    Commands for transcribing video and audio files.
+    """
+    def __init__(self, bot):
+        self.bot = bot
+        self.audio_files = os.getenv("SOURCE_PATH")
+        self.cuda_api_url = os.getenv("CUDA_API_URL")
+        self.completed_files = os.getenv("COMPLETED_PATH")
+
+    @commands.command(name="transcribe_audio")
+    async def transcribe_audio(self, ctx):
+        try:
+            files = os.listdir(self.audio_files)
+            if not files:
+                await ctx.send("No audio files found in the specified directory.")
+                return
+            
+            await ctx.send(f"Select the file to transcribe:")
+            view = View(timeout=300)
+            for file in files:
+                audio_file_path = os.path.join(self.audio_files, file)
+                if os.path.isfile(audio_file_path):
+                    button = Button(label=file, custom_id=file)
+                    button.callback = self.create_button_callback(ctx, audio_file_path, file)
+                    view = View()
+                    view.add_item(button)
+                    await ctx.send(view=view)
+                else:
+                    await ctx.send(f"{file} is not a valid file.")
+
+        except Exception as e:
+            logging.error(f"Error listing audio files: {e}")
+            await ctx.send("An error occurred while listing audio files.")
+
+    def create_button_callback(self, ctx, audio_file_path, file):
+        async def button_callback(interaction):
+            try:
+                await interaction.response.send_message(f"Transcribing {audio_file_path}...")
+
+                with open(audio_file_path, "rb") as audio_file:
+                    files = {'file': audio_file}
+                    data = {
+                        'language': 'en',
+                        'model': 'faster-whisper-med-en-gpu'
+                    }
+                    response = requests.post(self.cuda_api_url, files=files, data=data)
+
+                if response.status_code == 200:
+                    transcription_result = response.json()
+                    date_str = datetime.now().strftime("%Y-%m-%d")
+                    file_header = os.path.splitext(file)[0]
+                    output_file_path = os.path.join(self.completed_files, f"{file_header}_{date_str}.txt")
+                    with open(output_file_path, "w") as output_file:
+                        json.dump(transcription_result, output_file, indent=4)
+                    await ctx.send(f"Transcription completed! Output saved to {output_file_path}")
+
+                else:
+                    await ctx.send(f"Transcription failed: {response.text}")
+
+            except Exception as e:
+                logging.error(f"Error during transcription: {e}")
+                await ctx.send("An error occurred during transcription.")
+
+        return button_callback
+
+async def setup(bot):
+    await bot.add_cog(TranscribeCog(bot))
+    logging.info("Transcription cog loaded successfully.")

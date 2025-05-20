@@ -34,5 +34,17 @@ spec:
           envFrom:
             - secretRef:
                 name: {{ .Release.Name }}-env-secrets
+          {{- if .Values.nfs.enabled }}
+          volumeMounts:
+            - name: {{ .Values.nfs.name }}
+              mountPath: {{ .Values.nfs.mountPath }}
+          {{- end }}
           resources:
             {{- toYaml .Values.resources | nindent 12 }}
+      {{- if .Values.nfs.enabled }}
+      volumes:
+        - name: {{ .Values.nfs.name }}
+          nfs:
+            server: {{ .Values.nfs.server }}
+            path: {{ .Values.nfs.path }}
+      {{- end }}
