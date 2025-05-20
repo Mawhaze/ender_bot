@@ -31,6 +31,12 @@ spec:
               value: {{ .Values.env.logLevel | quote }}
             - name: API_URL
               value: {{ .Values.env.apiUrl | quote }}
+            - name: CUDA_API_URL
+              value: {{ .Values.env.cudaApiUrl | quote }}
+            - name: COMPLETED_PATH
+              value: {{ .Values.env.completedPath | quote }}
+            - name: SOURCE_PATH
+              value: {{ .Values.env.sourcePath | quote }}
           envFrom:
             - secretRef:
                 name: {{ .Release.Name }}-env-secrets
