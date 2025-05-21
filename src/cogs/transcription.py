@@ -107,6 +107,7 @@ class TranscribeCog(commands.Cog):
                         continue
                     if checked_text:
                         max_overlap = min(window, len(checked_text), len(text))
+                        overlap_found = 0
                         for i in range(max_overlap, 0, -1):
                             if checked_text[-i:] == text[:i]:
                                 overlap_found = i
