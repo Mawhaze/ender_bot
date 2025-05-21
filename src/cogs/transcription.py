@@ -42,7 +42,6 @@ class TranscribeCog(commands.Cog):
                 if os.path.isfile(audio_file_path):
                     button = Button(label=file, custom_id=file)
                     button.callback = self.create_button_callback(ctx, audio_file_path, file)
-                    view = View()
                     view.add_item(button)
                 else:
                     await ctx.send(f"{file} is not a valid file.")
