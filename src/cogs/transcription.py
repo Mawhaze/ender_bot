@@ -35,17 +35,18 @@ class TranscribeCog(commands.Cog):
                 await ctx.send("No audio files found in the specified directory.")
                 return
             
-            await ctx.send(f"Select the file to transcribe:")
             view = View(timeout=300)
             for file in files:
                 audio_file_path = os.path.join(self.audio_files, file)
                 if os.path.isfile(audio_file_path):
-                    button = Button(label=file, custom_id=file)
+                    label = file[:80]
+                    custom_id = file[:100]
+                    button = Button(label=label, custom_id=custom_id)
                     button.callback = self.create_button_callback(ctx, audio_file_path, file)
                     view.add_item(button)
                 else:
                     await ctx.send(f"{file} is not a valid file.")
-            await ctx.send(view=view)
+            await ctx.send(content= "Select the file to transcribe", view=view)
 
         except Exception as e:
             logging.error(f"Error listing audio files: {e}")
