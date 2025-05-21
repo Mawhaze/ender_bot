@@ -97,8 +97,26 @@ class TranscribeCog(commands.Cog):
                         segment_idx += 1
                         start += (segment_length - overlap)
 
+                dedeuped_results = []
+                checked_text = ""
+                window = 300
+
+                for idx, text in enumerate(results):
+                    text = text.strip()
+                    if not text:
+                        continue
+                    if checked_text:
+                        max_overlap = min(window, len(checked_text), len(text))
+                        for i in range(max_overlap, 0, -1):
+                            if checked_text[-i:] == text[:i]:
+                                overlap_found = i
+                                break
+                        text = text[overlap_found:]
+                    dedeuped_results.append(text)
+                    checked_text += text
+
                 # Combine and save results
-                combined_text = "\n".join(results)
+                combined_text = "\n".join(dedeuped_results)
                 date_str = datetime.now().strftime("%Y-%m-%d")
                 file_header = os.path.splitext(file)[0]
                 output_file_path = os.path.join(self.completed_files, f"{file_header}_{date_str}.txt")
