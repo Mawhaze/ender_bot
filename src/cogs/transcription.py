@@ -1,8 +1,9 @@
-import discord
+import aiohttp
+import ffmpeg
 import json
 import os
 import logging
-import requests
+import tempfile
 
 from datetime import datetime
 from discord.ext import commands
@@ -43,38 +44,67 @@ class TranscribeCog(commands.Cog):
                     button.callback = self.create_button_callback(ctx, audio_file_path, file)
                     view = View()
                     view.add_item(button)
-                    await ctx.send(view=view)
                 else:
                     await ctx.send(f"{file} is not a valid file.")
+            await ctx.send(view=view)
 
         except Exception as e:
             logging.error(f"Error listing audio files: {e}")
             await ctx.send("An error occurred while listing audio files.")
 
-    def create_button_callback(self, ctx, audio_file_path, file):
+    def create_button_callback(self, ctx, video_file_path, file, segment_length=120, overlap=15):
         async def button_callback(interaction):
             try:
-                await interaction.response.send_message(f"Transcribing {audio_file_path}...")
+                await interaction.response.send_message(f"Transcribing {video_file_path} in 120s segments with 15s overlap...")
 
-                with open(audio_file_path, "rb") as audio_file:
-                    files = {'file': audio_file}
-                    data = {
-                        'language': 'en',
-                        'model': 'faster-whisper-med-en-gpu'
-                    }
-                    response = requests.post(self.cuda_api_url, files=files, data=data)
+                # Probe video duration
+                probe = ffmpeg.probe(video_file_path)
+                duration = float(probe['format']['duration'])
+                results = []
+                ext = os.path.splitext(file)[1][1:]  # e.g., 'mp4'
+                segment_idx = 0
+                start = 0
 
-                if response.status_code == 200:
-                    transcription_result = response.json()
-                    date_str = datetime.now().strftime("%Y-%m-%d")
-                    file_header = os.path.splitext(file)[0]
-                    output_file_path = os.path.join(self.completed_files, f"{file_header}_{date_str}.txt")
-                    with open(output_file_path, "w") as output_file:
-                        json.dump(transcription_result, output_file, indent=4)
-                    await ctx.send(f"Transcription completed! Output saved to {output_file_path}")
+                async with aiohttp.ClientSession() as session:
+                    while start < duration:
+                        actual_length = min(segment_length, duration - start)
+                        segment_file = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False)
+                        segment_file.close()
 
-                else:
-                    await ctx.send(f"Transcription failed: {response.text}")
+                        (
+                            ffmpeg
+                            .input(video_file_path, ss=start, t=actual_length)
+                            .output(segment_file.name, c='copy')
+                            .overwrite_output()
+                            .run(quiet=True)
+                        )
+
+                        # Send segments to transcription API
+                        form = aiohttp.FormData()
+                        with open(segment_file.name, "rb") as segf:
+                            form.add_field('file', segf, filename=f"{file}.part{segment_idx}")
+                            form.add_field('language', 'en')
+                            form.add_field('model', 'faster-whisper-med-en-gpu')
+                            async with session.post(self.cuda_api_url, data=form) as response:
+                                if response.status == 200:
+                                    transcription_result = await response.json()
+                                    results.append(transcription_result.get("text", ""))
+                                else:
+                                    text = await response.text()
+                                    await ctx.send(f"Segment {segment_idx+1} transcription failed: {text}")
+
+                        os.unlink(segment_file.name)
+                        segment_idx += 1
+                        start += (segment_length - overlap)
+
+                # Combine and save results
+                combined_text = "\n".join(results)
+                date_str = datetime.now().strftime("%Y-%m-%d")
+                file_header = os.path.splitext(file)[0]
+                output_file_path = os.path.join(self.completed_files, f"{file_header}_{date_str}.txt")
+                with open(output_file_path, "w") as output_file:
+                    output_file.write(combined_text)
+                await ctx.send(f"Transcription completed! Output saved to {output_file_path}")
 
             except Exception as e:
                 logging.error(f"Error during transcription: {e}")
