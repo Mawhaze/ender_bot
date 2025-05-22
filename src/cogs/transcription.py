@@ -111,7 +111,7 @@ class TranscribeCog(commands.Cog):
     def create_button_callback(self, ctx, video_file_path, file, silence_threshold='-30dB', silence_duration=1):
         async def button_callback(interaction):
             try:
-                await interaction.response.send_message(f"Transcribing {video_file_path} in 120s segments...")
+                await interaction.response.send_message(f"Running silence detection on {video_file_path} and transcribing...")
 
                 ext = os.path.splitext(file)[1][1:]
                 silence_ends = await asyncio.get_event_loop().run_in_executor(
@@ -122,7 +122,8 @@ class TranscribeCog(commands.Cog):
                 )
 
                 results = []
-                async with aiohttp.ClientSession() as session:
+                timeout = aiohttp.ClientTimeout(total=600)
+                async with aiohttp.ClientSession(timeout=timeout) as session:
                     for idx, segment_path in enumerate(segment_files):
                         form = aiohttp.FormData()
                         with open(segment_path, "rb") as segf:
@@ -130,15 +131,20 @@ class TranscribeCog(commands.Cog):
                             form.add_field('language', 'en')
                             form.add_field('model', 'faster-whisper-med-en-gpu')
                             logging.info(f"Uploading segment {idx}: {segment_path}")
-                            async with session.post(self.cuda_api_url, data=form) as response:
-                                if response.status == 200:
-                                    transcription_result = await response.json()
-                                    results.append(transcription_result.get("text", ""))
-                                    logging.info(f"Segment {idx} transcribed successfully.")
-                                else:
-                                    text = await response.text()
-                                    logging.info(f"Segment {idx+1} transcription failed: {text}")
-                                    await ctx.send(f"Segment {idx+1} transcription failed: {text}")
+                            try:
+                                async with session.post(self.cuda_api_url, data=form) as response:
+                                    if response.status == 200:
+                                        transcription_result = await response.json()
+                                        results.append(transcription_result.get("text", ""))
+                                        logging.info(f"Segment {idx} transcribed successfully.")
+                                    else:
+                                        text = await response.text()
+                                        logging.info(f"Segment {idx+1} transcription failed: {text}")
+                                        await ctx.send(f"Segment {idx+1} transcription failed: {text}")
+                            except asyncio.TimeoutError:
+                                logging.error(f"Timeout while uploading segment {idx} to CUDA API")
+                                await ctx.send(f"Timeout while uploading segment {idx} to CUDA API")
+                                continue
                     try:
                         os.unlink(segment_path)
                         logging.info(f"Deleted temp segment file: {segment_path}")
