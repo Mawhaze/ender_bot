@@ -105,7 +105,7 @@ class TranscribeCog(commands.Cog):
                 silence_ends = await asyncio.get_event_loop().run_in_executor(
                     None, self.detect_audio_silence, video_file_path, silence_threshold, silence_duration
                 )
-                segment_files = await asyncio.get_event_loop()run_in_executor(
+                segment_files = await asyncio.get_event_loop().run_in_executor(
                     None, self.split_audio_silence, video_file_path, silence_ends, ext
                 )
 
