@@ -9,7 +9,6 @@ from discord.ui import Button, View
 
 # Configure logging
 logging.basicConfig(
-    filename=os.getenv("LOG_FILE", "tmp/logs/ender-bot.log"),
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
     )

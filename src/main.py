@@ -7,7 +7,6 @@ from discord.ext import commands
 from dotenv import load_dotenv
 
 logging.basicConfig(
-    filename=os.getenv("LOG_FILE", "/tmp/logs/ender_bot.log"),
     level=logging.DEBUG,
     format='%(asctime)s - %(levelname)s - %(message)s'
 )

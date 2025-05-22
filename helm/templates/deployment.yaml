@@ -37,6 +37,8 @@ spec:
               value: {{ .Values.env.completedPath | quote }}
             - name: SOURCE_PATH
               value: {{ .Values.env.sourcePath | quote }}
+            - name: TMP_DIR
+              value: {{ .Values.env.transcribeDir | quote }}
           envFrom:
             - secretRef:
                 name: {{ .Release.Name }}-env-secrets

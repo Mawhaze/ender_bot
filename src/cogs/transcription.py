@@ -15,7 +15,6 @@ from discord.ui import Button, View
 
 # Configure logging
 logging.basicConfig(
-    filename=os.getenv("LOG_FILE", "tmp/logs/ender-bot.log"),
     level=logging.INFO,
     format="%(asctime)s - %(levelname)s - %(message)s"
     )
@@ -77,6 +76,7 @@ class TranscribeCog(commands.Cog):
         """
         segment_files = []
         prev_end = 0
+        tmp_dir = os.getenv("TMP_DIR")
         for idx, end in enumerate(silence_ends + [None]):
             start = prev_end
             duration = (end - start) if end else None
