@@ -90,7 +90,7 @@ class TranscribeCog(commands.Cog):
                 .input(input_file)
                 .output(segment_file.name, c='copy')
                 .overwrite_output()
-                .run(quit=True)
+                .run(quiet=True)
             )
             segment_files.append(segment_file.name)
             prev_end = end if end else prev_end
