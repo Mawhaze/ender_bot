@@ -5,6 +5,7 @@ import json
 import os
 import logging
 import tempfile
+import traceback
 import subprocess
 import re
 
@@ -64,11 +65,16 @@ class TranscribeCog(commands.Cog):
             '-af', f'silencedetect=noise={silence_threshold}:d={silence_duration}',
             '-f', 'null', '-'
         ]
-        result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
-        output = result.stderr
-
-        silence_ends = [float(m.group(1)) for m in re.finditer(r'silence_end: (\d+(\.\d+)?)', output)]
-        return silence_ends
+        try:
+            result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
+            output = result.stderr
+            logging.debug(f"ffmpeg silencedetect output: {output}")
+            silence_ends = [float(m.group(1)) for m in re.finditer(r'silence_end: (\d+(\.\d+)?)', output)]
+            logging.info(f"Detected silence ends at: {silence_ends}")
+            return silence_ends
+        except Exception as e:
+            logging.error(f"Error detecting silence: {e}")
+            raise
     
     def split_audio_silence(self, input_file, silence_ends, ext):
         """
@@ -85,15 +91,21 @@ class TranscribeCog(commands.Cog):
             input_kwargs = {'ss': start}
             if duration:
                 input_kwargs['t'] = duration
-            (
-                ffmpeg
-                .input(input_file)
-                .output(segment_file.name, c='copy')
-                .overwrite_output()
-                .run(quiet=True)
-            )
-            segment_files.append(segment_file.name)
+            try:
+                logging.info(f"Creating segment {idx}: start={start}, duration={duration}, file={segment_file.name}")
+                (
+                    ffmpeg
+                    .input(input_file)
+                    .output(segment_file.name, c='copy')
+                    .overwrite_output()
+                    .run(quiet=True)
+                )
+                segment_files.append(segment_file.name)
+            except Exception as e:
+                logging.error(f"Error creating segment {idx}: {e}")
+                raise
             prev_end = end if end else prev_end
+        logging.info(f"Creating sefments: {segment_files}")
         return segment_files
 
     def create_button_callback(self, ctx, video_file_path, file, silence_threshold='-30dB', silence_duration=1):
@@ -117,27 +129,39 @@ class TranscribeCog(commands.Cog):
                             form.add_field('file', segf, filename=f"{file}.part{idx}")
                             form.add_field('language', 'en')
                             form.add_field('model', 'faster-whisper-med-en-gpu')
+                            logging.info(f"Uploading segment {idx}: {segment_path}")
                             async with session.post(self.cuda_api_url, data=form) as response:
                                 if response.status == 200:
                                     transcription_result = await response.json()
                                     results.append(transcription_result.get("text", ""))
+                                    logging.info(f"Segment {idx} transcribed successfully.")
                                 else:
                                     text = await response.text()
+                                    logging.info(f"Segment {idx+1} transcription failed: {text}")
                                     await ctx.send(f"Segment {idx+1} transcription failed: {text}")
-
+                    try:
                         os.unlink(segment_path)
+                        logging.info(f"Deleted temp segment file: {segment_path}")
+                    except Exception as e:
+                        logging.warning(f"Could not delete temp segment file {segment_path}: {e}")
                 
                 # Combine and save results
                 combined_text = "\n".join(results)
                 date_str = datetime.now().strftime("%Y-%m-%d")
                 file_header = os.path.splitext(file)[0]
                 output_file_path = os.path.join(self.completed_files, f"{file_header}_{date_str}.txt")
-                with open(output_file_path, "w") as output_file:
-                    output_file.write(combined_text)
-                await ctx.send(f"Transcription completed! Output saved to {output_file_path}")
+                try:
+                    with open(output_file_path, "w") as output_file:
+                        output_file.write(combined_text)
+                    logging.info(f"Transcription completed! Output saved to {output_file_path}")
+                    await ctx.send(f"Transcription completed! Output saved to {output_file_path}")
+                except Exception as e:
+                    logging.error(f"Error writing transcription output: {e}")
+                    await ctx.send("Failed to save transcription output.")
 
             except Exception as e:
                 logging.error(f"Error during transcription: {e}")
+                logging.error(traceback.format_exc())
                 await ctx.send("An error occurred during transcription.")
 
         return button_callback

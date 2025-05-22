@@ -15,7 +15,7 @@ env:
   cudaApiUrl: http://kubeai/openai/v1/audio/transcriptions
   sourcePath: /mnt/transcribe/source
   completedPath: /mnt/transcribe/completed
-  transcribeDir: /mnt/transcribe/
+  transcribeDir: /mnt/transcribe/tmp
 
 
 imagePullSecrets:
