@@ -1,9 +1,12 @@
 import aiohttp
+import asyncio
 import ffmpeg
 import json
 import os
 import logging
 import tempfile
+import subprocess
+import re
 
 from datetime import datetime
 from discord.ext import commands
@@ -52,37 +55,66 @@ class TranscribeCog(commands.Cog):
             logging.error(f"Error listing audio files: {e}")
             await ctx.send("An error occurred while listing audio files.")
 
-    def create_button_callback(self, ctx, video_file_path, file, segment_length=120, overlap=15):
+    def detect_audio_silence(input_file, silence_threshold='-30dB', silence_duration=1):
+        """
+        Use ffmpeg-python to detect silence in the file
+        Returns a list of silence points to split the file for transcription
+        """
+        cmd = [
+            'ffmpeg', '-i', input_file,
+            '-af', f'silencedetect=noise={silence_threshold}:d={silence_duration}',
+            '-f', 'null', '-'
+        ]
+        result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
+        output = result.stderr
+
+        silence_ends = [float(m.group(1)) for m in re.finditer(r'silence_end: (\d+(\.\d+)?)', output)]
+        return silence_ends
+    
+    def split_audio_silence(input_file, silence_ends, ext):
+        """
+        Splits the audio file at the silent sections to ease transcription
+        """
+        segment_files = []
+        prev_end = 0
+        for idx, end in enumerate(silence_ends + [None]):
+            start = prev_end
+            duration = (end - start) if end else None
+            segment_file = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False)
+            segment_file.close
+            input_kwargs = {'ss': start}
+            if duration:
+                input_kwargs['t'] = duration
+            (
+                ffmpeg
+                .input(input_file)
+                .output(segment_file.name, c='copy')
+                .overwrite_output()
+                .run(quit=True)
+            )
+            segment_files.append(segment_file.name)
+            prev_end = end if end else prev_end
+        return segment_files
+
+    def create_button_callback(self, ctx, video_file_path, file, silence_threshold='-30dB', silence_duration='1'):
         async def button_callback(interaction):
             try:
-                await interaction.response.send_message(f"Transcribing {video_file_path} in 120s segments with 15s overlap...")
+                await interaction.response.send_message(f"Transcribing {video_file_path} in 120s segments...")
 
-                # Probe video duration
-                probe = ffmpeg.probe(video_file_path)
-                duration = float(probe['format']['duration'])
+                ext = os.path.splitext(file)[1][1:]
+                silence_ends = await asyncio.get_event_loop().run_in_executor(
+                    None, self.detect_audio_silence, video_file_path, silence_threshold, silence_duration
+                )
+                segment_files = await asyncio.get_event_loop()run_in_executor(
+                    None, self.split_audio_silence, video_file_path, silence_ends, ext
+                )
+
                 results = []
-                ext = os.path.splitext(file)[1][1:]  # e.g., 'mp4'
-                segment_idx = 0
-                start = 0
-
                 async with aiohttp.ClientSession() as session:
-                    while start < duration:
-                        actual_length = min(segment_length, duration - start)
-                        segment_file = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False)
-                        segment_file.close()
-
-                        (
-                            ffmpeg
-                            .input(video_file_path, ss=start, t=actual_length)
-                            .output(segment_file.name, c='copy')
-                            .overwrite_output()
-                            .run(quiet=True)
-                        )
-
-                        # Send segments to transcription API
+                    for idx, segment_path in enumerate(segment_files):
                         form = aiohttp.FormData()
-                        with open(segment_file.name, "rb") as segf:
-                            form.add_field('file', segf, filename=f"{file}.part{segment_idx}")
+                        with open(segment_path, "rb") as segf:
+                            form.add_field('file', segf, filename=f"{file}.part{idx}")
                             form.add_field('language', 'en')
                             form.add_field('model', 'faster-whisper-med-en-gpu')
                             async with session.post(self.cuda_api_url, data=form) as response:
@@ -91,33 +123,12 @@ class TranscribeCog(commands.Cog):
                                     results.append(transcription_result.get("text", ""))
                                 else:
                                     text = await response.text()
-                                    await ctx.send(f"Segment {segment_idx+1} transcription failed: {text}")
+                                    await ctx.send(f"Segment {idx+1} transcription failed: {text}")
 
-                        os.unlink(segment_file.name)
-                        segment_idx += 1
-                        start += (segment_length - overlap)
-
-                dedeuped_results = []
-                checked_text = ""
-                window = 300
-
-                for idx, text in enumerate(results):
-                    text = text.strip()
-                    if not text:
-                        continue
-                    if checked_text:
-                        max_overlap = min(window, len(checked_text), len(text))
-                        overlap_found = 0
-                        for i in range(max_overlap, 0, -1):
-                            if checked_text[-i:] == text[:i]:
-                                overlap_found = i
-                                break
-                        text = text[overlap_found:]
-                    dedeuped_results.append(text)
-                    checked_text += text
-
+                        os.unlink(segment_path)
+                
                 # Combine and save results
-                combined_text = "\n".join(dedeuped_results)
+                combined_text = "\n".join(results)
                 date_str = datetime.now().strftime("%Y-%m-%d")
                 file_header = os.path.splitext(file)[0]
                 output_file_path = os.path.join(self.completed_files, f"{file_header}_{date_str}.txt")
