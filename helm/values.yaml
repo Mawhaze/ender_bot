@@ -13,9 +13,9 @@ env:
   logLevel: DEBUG
   apiUrl: https://attdm.staging.mawhaze.dev
   cudaApiUrl: http://kubeai/openai/v1/audio/transcriptions
-  sourcePath: /tmp/transcribe/source
-  completedPath: /tmp/transcribe/completed
-  transcribeDir: /tmp/transcribe/tmp
+  sourcePath: /mnt/transcribe/source
+  completedPath: /mnt/transcribe/completed
+  transcribeDir: /mnt/transcribe/
 
 
 imagePullSecrets:
@@ -24,7 +24,7 @@ imagePullSecrets:
 nfs:
   enabled: true
   name: "ender-bot-nfs"
-  mountPath: /tmp/transcribe
+  mountPath: /mnt/transcribe
   path: /mnt/ZPool01/media/transcribe
   server: 10.10.10.20
 
