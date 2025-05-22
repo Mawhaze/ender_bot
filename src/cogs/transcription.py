@@ -55,7 +55,7 @@ class TranscribeCog(commands.Cog):
             logging.error(f"Error listing audio files: {e}")
             await ctx.send("An error occurred while listing audio files.")
 
-    def detect_audio_silence(input_file, silence_threshold='-30dB', silence_duration=1):
+    def detect_audio_silence(self, input_file, silence_threshold='-30dB', silence_duration=1):
         """
         Use ffmpeg-python to detect silence in the file
         Returns a list of silence points to split the file for transcription
@@ -71,7 +71,7 @@ class TranscribeCog(commands.Cog):
         silence_ends = [float(m.group(1)) for m in re.finditer(r'silence_end: (\d+(\.\d+)?)', output)]
         return silence_ends
     
-    def split_audio_silence(input_file, silence_ends, ext):
+    def split_audio_silence(self, input_file, silence_ends, ext):
         """
         Splits the audio file at the silent sections to ease transcription
         """
@@ -96,7 +96,7 @@ class TranscribeCog(commands.Cog):
             prev_end = end if end else prev_end
         return segment_files
 
-    def create_button_callback(self, ctx, video_file_path, file, silence_threshold='-30dB', silence_duration='1'):
+    def create_button_callback(self, ctx, video_file_path, file, silence_threshold='-30dB', silence_duration=1):
         async def button_callback(interaction):
             try:
                 await interaction.response.send_message(f"Transcribing {video_file_path} in 120s segments...")
