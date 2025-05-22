@@ -80,7 +80,7 @@ class TranscribeCog(commands.Cog):
         for idx, end in enumerate(silence_ends + [None]):
             start = prev_end
             duration = (end - start) if end else None
-            segment_file = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False)
+            segment_file = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False, dir=tmp_dir)
             segment_file.close
             input_kwargs = {'ss': start}
             if duration:
