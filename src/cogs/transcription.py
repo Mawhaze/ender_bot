@@ -95,7 +95,7 @@ class TranscribeCog(commands.Cog):
                 logging.info(f"Creating segment {idx}: start={start}, duration={duration}, file={segment_file.name}")
                 (
                     ffmpeg
-                    .input(input_file)
+                    .input(input_file, **input_kwargs)
                     .output(segment_file.name, c='copy')
                     .overwrite_output()
                     .run(quiet=True)
