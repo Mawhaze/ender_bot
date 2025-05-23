@@ -1,7 +1,6 @@
 import aiohttp
 import asyncio
 import ffmpeg
-import json
 import os
 import logging
 import tempfile
@@ -29,31 +28,7 @@ class TranscribeCog(commands.Cog):
         self.audio_files = os.getenv("SOURCE_PATH")
         self.cuda_api_url = os.getenv("CUDA_API_URL")
         self.completed_files = os.getenv("COMPLETED_PATH")
-
-    @commands.command(name="transcribe_audio")
-    async def transcribe_audio(self, ctx):
-        try:
-            files = os.listdir(self.audio_files)
-            if not files:
-                await ctx.send("No audio files found in the specified directory.")
-                return
-            
-            view = View(timeout=300)
-            for file in files:
-                audio_file_path = os.path.join(self.audio_files, file)
-                if os.path.isfile(audio_file_path):
-                    label = file[:80]
-                    custom_id = file[:100]
-                    button = Button(label=label, custom_id=custom_id)
-                    button.callback = self.create_button_callback(ctx, audio_file_path, file)
-                    view.add_item(button)
-                else:
-                    await ctx.send(f"{file} is not a valid file.")
-            await ctx.send(content= "Select the file to transcribe", view=view)
-
-        except Exception as e:
-            logging.error(f"Error listing audio files: {e}")
-            await ctx.send("An error occurred while listing audio files.")
+        self.tmp_dir = os.getenv("TMP_DIR")
 
     def detect_audio_silence(self, input_file, silence_threshold='-30dB', silence_duration=1):
         """
@@ -82,11 +57,10 @@ class TranscribeCog(commands.Cog):
         """
         segment_files = []
         prev_end = 0
-        tmp_dir = os.getenv("TMP_DIR")
         for idx, end in enumerate(silence_ends + [None]):
             start = prev_end
             duration = (end - start) if end else None
-            segment_file = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False, dir=tmp_dir)
+            segment_file = tempfile.NamedTemporaryFile(suffix=f".{ext}", delete=False, dir=self.tmp_dir)
             segment_file.close
             input_kwargs = {'ss': start}
             if duration:
@@ -105,8 +79,33 @@ class TranscribeCog(commands.Cog):
                 logging.error(f"Error creating segment {idx}: {e}")
                 raise
             prev_end = end if end else prev_end
-        logging.info(f"Creating sefments: {segment_files}")
+        logging.info(f"Creating segments: {segment_files}")
         return segment_files
+    
+    @commands.command(name="transcribe_audio")
+    async def transcribe_audio(self, ctx):
+        try:
+            files = os.listdir(self.audio_files)
+            if not files:
+                await ctx.send("No audio files found in the specified directory.")
+                return
+            
+            view = View(timeout=300)
+            for file in files:
+                audio_file_path = os.path.join(self.audio_files, file)
+                if os.path.isfile(audio_file_path):
+                    label = file[:80]
+                    custom_id = file[:100]
+                    button = Button(label=label, custom_id=custom_id)
+                    button.callback = self.create_button_callback(ctx, audio_file_path, file)
+                    view.add_item(button)
+                else:
+                    await ctx.send(f"{file} is not a valid file.")
+            await ctx.send(content= "Select the file to transcribe", view=view)
+
+        except Exception as e:
+            logging.error(f"Error listing audio files: {e}")
+            await ctx.send("An error occurred while listing audio files.")
 
     def create_button_callback(self, ctx, video_file_path, file, silence_threshold='-30dB', silence_duration=1):
         async def button_callback(interaction):
@@ -145,11 +144,6 @@ class TranscribeCog(commands.Cog):
                                 logging.error(f"Timeout while uploading segment {idx} to CUDA API")
                                 await ctx.send(f"Timeout while uploading segment {idx} to CUDA API")
                                 continue
-                    try:
-                        os.unlink(segment_path)
-                        logging.info(f"Deleted temp segment file: {segment_path}")
-                    except Exception as e:
-                        logging.warning(f"Could not delete temp segment file {segment_path}: {e}")
                 
                 # Combine and save results
                 combined_text = "\n".join(results)
@@ -169,6 +163,15 @@ class TranscribeCog(commands.Cog):
                 logging.error(f"Error during transcription: {e}")
                 logging.error(traceback.format_exc())
                 await ctx.send("An error occurred during transcription.")
+            finally:
+                if segment_files:
+                    for segment_path in segment_files:
+                        if os.path.exists(segment_path):
+                            try:
+                                os.unlink(segment_path)
+                                logging.info(f"Deleted temp segment file: {segment_path}")
+                            except Exception as e:
+                                logging.warning(f"Could not delete temp segment file {segment_path}: {e}")
 
         return button_callback
 
