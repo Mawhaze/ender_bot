@@ -376,6 +376,29 @@ class AttdmCog(commands.Cog):
             await ctx.send(f"An error occurred: {e}")
             return
 
+    @commands.command(name="delete_pc")
+    async def delete_pc(self, ctx):
+        """
+        Delete a player character. Requires the same character id used to import a character
+        """
+        campaign_id = self.user_sessions.get(ctx.author.id)
+        if not campaign_id:
+            logging.warning(f"No campaign selected")
+        await self.select_player(ctx)
+        character_id = self.user_sessions.get("character_id")
+        url = f"{self.api_base_url}/player/{campaign_id}/delete/?character_id={character_id}"
+        try:
+            response = requests.post(url)
+            if response.status_code == 200:
+                logging.info(f"{character_id} deleted")
+                await ctx.send(f"Delete {character_id}")
+            else:
+                logging.info(f"Failed to delete {character_id}")
+                await ctx.send(f"Failed to delete {character_id}")
+        except Exception as e:
+            logging.error(f"An error occurred while deleting {character_id}: {e}")
+            await ctx.send(f"An error occurred: {e}")
+
     @commands.command(name="roll_loot")
     async def roll_loot(self, ctx):
         """
