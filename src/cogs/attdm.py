@@ -64,7 +64,7 @@ class AttdmCog(commands.Cog):
         # Helper methods to run the commands
         async def run_create_campaign(ctx):
             await self.create_campaign(ctx)
-            await self.show_action_menu(ctx)
+            await self.select_campaign(ctx)
 
         async def run_select_campaign(ctx):
             await self.select_campaign(ctx)
@@ -336,34 +336,28 @@ class AttdmCog(commands.Cog):
                 pcs = response.json()
                 if pcs:
                     logging.info(f"Players found for campaign {campaign_id}: {pcs}.")
-                    # Create a view with buttons for each player
-                    view = View(timeout=60)  # Set a timeout for the view
-                    player_selected = False  # Flag to track if a player is selected
-
+                    view = View(timeout=60)
+                    player_selected = False
                     for pc in pcs:
                         pc_name, character_id, class_level = pc
                         button = Button(label=f"{pc_name} ({class_level})", style=discord.ButtonStyle.primary)
 
-                        # Define the callback for the button
                         async def button_callback(interaction: discord.Interaction, pc_name=pc_name):
                             self.user_sessions["character_name"] = pc_name
                             logging.info(f"User {ctx.author.id} selected player '{pc_name}'.")
                             await interaction.response.send_message(f"Player '{pc_name}' selected!", ephemeral=True)
                             nonlocal player_selected
-                            player_selected = True  # Set the flag to True
-                            view.stop()  # Stop the view to continue execution
-
+                            player_selected = True
+                            view.stop()
                         button.callback = button_callback
                         view.add_item(button)
 
-                    # Send the message with the buttons
                     await ctx.send("**Select a player character:**", view=view)
-
-                    # Wait for the user to interact with the buttons
                     await view.wait()
 
                     # Check if a player was selected
                     selected_pc = self.user_sessions.get("character_name")
+                    character_id = self.user_sessions.get("character_id")
                     if not player_selected:
                         logging.warning(f"User {ctx.author.id} did not select a player.")
                         await ctx.send("No player character selected.")
@@ -389,7 +383,7 @@ class AttdmCog(commands.Cog):
         Usage: !roll_loot
         """
         # Check if the command is being run in the correct channel
-        dm_channel_id = os.getenv("DM_CHANNEL")  # Get the DM channel ID from the environment variable
+        dm_channel_id = os.getenv("DM_CHANNEL")
         if not dm_channel_id:
             logging.error("DM_CHANNEL environment variable is not set.")
             await ctx.send("DM_CHANNEL environment variable is not set.")
@@ -412,9 +406,7 @@ class AttdmCog(commands.Cog):
         if not selected_pc:
             logging.warning(f"User {ctx.author.id} attempted to roll loot without selecting a player.")
             await ctx.send("You have not selected a player character yet.")
-            # Run the select_player command
             await self.select_player(ctx)
-            # Recheck if a player has been selected
             selected_pc = self.user_sessions.get("character_name")
             if not selected_pc:
                 logging.warning(f"User {ctx.author.id} did not select a player after being prompted.")

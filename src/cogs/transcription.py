@@ -22,6 +22,7 @@ logging.basicConfig(
 class TranscribeCog(commands.Cog):
     """
     Commands for transcribing video and audio files.
+    This requires an api endpoint running the faster-whisper model to handle transcription.
     """
     def __init__(self, bot):
         self.bot = bot
