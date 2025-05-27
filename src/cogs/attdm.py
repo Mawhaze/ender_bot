@@ -344,6 +344,7 @@ class AttdmCog(commands.Cog):
 
                         async def button_callback(interaction: discord.Interaction, pc_name=pc_name):
                             self.user_sessions["character_name"] = pc_name
+                            self.user_sessions["character_id"] = character_id
                             logging.info(f"User {ctx.author.id} selected player '{pc_name}'.")
                             await interaction.response.send_message(f"Player '{pc_name}' selected!", ephemeral=True)
                             nonlocal player_selected
@@ -357,7 +358,6 @@ class AttdmCog(commands.Cog):
 
                     # Check if a player was selected
                     selected_pc = self.user_sessions.get("character_name")
-                    character_id = self.user_sessions.get("character_id")
                     if not player_selected:
                         logging.warning(f"User {ctx.author.id} did not select a player.")
                         await ctx.send("No player character selected.")
