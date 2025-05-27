@@ -437,6 +437,7 @@ class AttdmCog(commands.Cog):
                 return
 
         # Call the roll loot API
+        await ctx.send(f"Rolling loot for {selected_pc}")
         url = f"{self.api_base_url}/loot/{campaign_id}/roll/?character_name={selected_pc}"
         try:
             logging.info(f"Rolling loot for campaign {campaign_id} and player {selected_pc} via {url}.")
