@@ -29,11 +29,11 @@ class AttdmCog(commands.Cog):
         The main menu for the dnd bot section.
         Usage: !dnd
         """
-        async def show_main_menu():
+        async def init_menu():
             """
             Show the main menu with options for `create_campaign` and `select_campaign`.
             """
-            class MainMenuView(View):
+            class InitMenuView(View):
                 def __init__(self, run_create_campaign, run_select_campaign):
                     super().__init__(timeout=300)
                     self.run_create_campaign = run_create_campaign
@@ -59,7 +59,7 @@ class AttdmCog(commands.Cog):
                     self.stop()
                     await self.run_select_campaign(ctx)
 
-            await ctx.send("**Main Menu:**", view=MainMenuView(run_create_campaign, run_select_campaign))
+            await ctx.send("**Campaign Selection Menu:**", view=InitMenuView(run_create_campaign, run_select_campaign))
 
         # Helper methods to run the commands
         async def run_create_campaign(ctx):
@@ -69,39 +69,33 @@ class AttdmCog(commands.Cog):
         async def run_select_campaign(ctx):
             await self.select_campaign(ctx)
 
-        # Start by showing the main menu
-        await show_main_menu()
+        await init_menu()
 
-    async def show_action_menu(self, ctx):
+    async def main_menu(self, ctx):
         """
         Show the action menu with options for `roll_loot`, `add_character`, `add_loot_source`, and `list_loot_sources`.
         """
-        class ActionMenuView(View):
+        class MainMenuView(View):
             def __init__(self, cog):
                 super().__init__(timeout=None)
                 self.cog = cog
 
-                # Button for rolling loot
+                # Rolling loot
                 self.roll_loot_button = Button(label="Roll Loot", style=discord.ButtonStyle.primary)
                 self.roll_loot_button.callback = self.roll_loot_callback
                 self.add_item(self.roll_loot_button)
 
-                # Button for adding a character
-                self.add_character_button = Button(label="Add Character", style=discord.ButtonStyle.primary)
-                self.add_character_button.callback = self.add_character_callback
-                self.add_item(self.add_character_button)
+                # NPC and Location Menu
+                self.lore_menu_button = Button(label="NPC & Locations Menu", style=discord.ButtonStyle.primary)
+                self.lore_menu_button.callback = self.lore_menu_callback
+                self.add_item(self.lore_menu_button)
 
-                # Button for adding loot sources
-                self.add_loot_source_button = Button(label="Add Loot Source", style=discord.ButtonStyle.primary)
-                self.add_loot_source_button.callback = self.add_loot_source_callback
-                self.add_item(self.add_loot_source_button)
+                # Campaign Management Menu
+                self.mgmt_menu_button = Button(label="Campaign Management Menu", style=discord.ButtonStyle.primary)
+                self.mgmt_menu_button.callback = self.mgmt_menu_callback
+                self.add_item(self.mgmt_menu_button)
 
-                # Button for listing loot sources
-                self.list_loot_sources_button = Button(label="List Loot Sources", style=discord.ButtonStyle.primary)
-                self.list_loot_sources_button.callback = self.list_loot_sources_callback
-                self.add_item(self.list_loot_sources_button)
-
-                # Button for quitting the action menu
+                # End the Session
                 self.quit_button = Button(label="Quit", style=discord.ButtonStyle.danger)
                 self.quit_button.callback = self.quit_callback
                 self.add_item(self.quit_button)
@@ -109,28 +103,163 @@ class AttdmCog(commands.Cog):
             async def roll_loot_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
                 await self.cog.roll_loot(ctx)
-                await self.cog.show_action_menu(ctx)
+                await self.cog.main_menu(ctx)
 
-            async def add_character_callback(self, interaction: discord.Interaction):
+            async def lore_menu_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.add_character(ctx)
-                await self.cog.show_action_menu(ctx)
+                await self.cog.campaign_lore_menu(ctx)
 
-            async def add_loot_source_callback(self, interaction: discord.Interaction):
+            async def mgmt_menu_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.add_loot_source(ctx)
-                await self.cog.show_action_menu(ctx)
-
-            async def list_loot_sources_callback(self, interaction: discord.Interaction):
-                await interaction.response.defer()
-                await self.cog.list_loot_sources(ctx)
-                await self.cog.show_action_menu(ctx)
-
+                await self.cog.campaign_mgmt_menu(ctx)
+            
             async def quit_callback(self, interaction: discord.Interaction):
                 await interaction.response.send_message("Ending the dnd session.", ephemeral=True)
                 self.stop()
 
-        await ctx.send("**Action Menu:**", view=ActionMenuView(self))
+        await ctx.send("**Main Menu:**", view=MainMenuView(self))
+
+    async def campaign_lore_menu(self, ctx):
+        """
+        This menu is for managing a campaigns lore items. At this time, NPCs and Locations
+        """
+        class LoreMenuView(View):
+            def __init__(self, cog):
+                super().__init__(timeout=None)
+                self.cog = cog
+
+                # NPC Buttons
+                self.add_npc_button = Button(label="Add NPC", style=discord.ButtonStyle.primary)
+                self.add_npc_button.callback = self.add_npc_callback
+                self.add_item(self.add_npc_button)
+
+                self.edit_npc_button = Button(label="Edit NPC details", style=discord.ButtonStyle.primary)
+                self.edit_npc_button.callback = self.add_npc_callback
+                self.add_item(self.edit_npc_button)
+
+                self.delete_npc_button = Button(label="Delete NPC", style=discord.ButtonStyle.primary)
+                self.delete_npc_button.callback = self.delete_npc_callback
+                self.add_item(self.delete_npc_button)
+
+                # Location Buttons
+                self.add_location_button = Button(label="Add Location", style=discord.ButtonStyle.primary)
+                self.add_location_button.callback = self.add_location_callback
+                self.add_item(self.add_location_button)
+
+                self.edit_location_button = Button(label="Edit Location", style=discord.ButtonStyle.primary)
+                self.edit_location_button.callback = self.edit_location_callback
+                self.add_item(self.edit_location_button)
+
+                self.delete_location_button = Button(label="Delete Location", style=discord.ButtonStyle.primary)
+                self.delete_location_button.callback = self.delete_location_callback
+                self.add_item(self.delete_location_button)
+
+                # Previous Menu
+                self.menu_back_button = Button(label="Previous Menu", style=discord.ButtonStyle.danger)
+                self.menu_back_button.callback = self.menu_back_callback
+                self.add_item(self.menu_back_button)
+
+            async def add_npc_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.add_lore_item(ctx)
+                await self.cog.campaign_lore_menu(ctx)
+
+            async def edit_npc_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.edit_lore_item(ctx)
+                await self.cog.campaign_lore_menu(ctx)
+
+            async def delete_npc_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.delete_lore_item(ctx)
+                await self.cog.campaign_lore_menu(ctx)
+            
+            async def add_location_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.add_lore_item(ctx)
+                await self.cog.campaign_lore_menu(ctx)
+
+            async def edit_location_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.edit_lore_item(ctx)
+                await self.cog.campaign_lore_menu(ctx)
+
+            async def delete_location_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.delete_lore_item(ctx)
+                await self.cog.campaign_lore_menu(ctx)
+
+            async def menu_back_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                self.stop()
+                await self.cog.main_menu(ctx)
+
+        await ctx.send("**NPC & Location Menu:**", view=LoreMenuView(self))
+
+    async def campaign_mgmt_menu(self, ctx):
+        class MgmtMenuView(View):
+            def __init__(self, cog):
+                super().__init__(timeout=None)
+                self.cog = cog
+
+                # Loot Buttons
+                self.add_loot_source_button = Button(label="Add Loot Source", style=discord.ButtonStyle.primary)
+                self.add_loot_source_button.callback = self.add_loot_source_callback
+                self.add_item(self.add_loot_source_button)
+
+                self.list_loot_sources_button = Button(label="List Loot Sources", style=discord.ButtonStyle.primary)
+                self.list_loot_sources_button.callback = self.list_loot_sources_callback
+                self.add_item(self.list_loot_sources_button)
+
+                # Player Character Buttons
+                self.add_character_button = Button(label="Add Character", style=discord.ButtonStyle.primary)
+                self.add_character_button.callback = self.add_character_callback
+                self.add_item(self.add_character_button)
+
+                self.list_party_button = Button(label="List Party Members", style=discord.ButtonStyle.primary)
+                self.list_party_button.callback = self.list_party_callback
+                self.add_item(self.list_party_button)
+
+                self.delete_character_button = Button(label="Delete Character", style=discord.ButtonStyle.danger)
+                self.delete_character_button.callback = self.delete_character_callback
+                self.add_item(self.delete_character_button)
+                
+                # Previous Menu
+                self.menu_back_button = Button(label="Previous Menu", style=discord.ButtonStyle.danger)
+                self.menu_back_button.callback = self.menu_back_callback
+                self.add_item(self.menu_back_button)
+
+            async def add_loot_source_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.add_loot_source(ctx)
+                await self.cog.capaign_mgmt_menu(ctx)
+
+            async def list_loot_sources_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.list_loot_sources(ctx)
+                await self.cog.campaign_mgmt_menu(ctx)
+            
+            async def add_character_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.add_character(ctx)
+                await self.cog.campaign_mgmt_menu(ctx)
+            
+            async def list_party_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.list_pc(ctx)
+                await self.cog.campaign_mgmt_menu(ctx)
+
+            async def delete_character_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.delete_pc(ctx)
+                await self.cog.campaign_mgmt_menu(ctx)
+            
+            async def menu_back_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                self.stop()
+                await self.cog.main_menu(ctx)
+
+        await ctx.send("**Campaign Management Menu:**", view=MgmtMenuView(self))
 
     @commands.command(name="create_campaign")
     async def create_campaign(self, ctx):
@@ -168,11 +297,10 @@ class AttdmCog(commands.Cog):
         payload = {
             "name": campaign_name,
             "dm": dm_name,
-            "loot_books": []  # Optional field, can be extended later
+            "loot_books": []
         }
 
         try:
-            # Send the POST request to the API
             logging.info(f"Sending POST request to {url} with payload: {payload}")
             response = requests.post(url, json=payload)
             if response.status_code == 200:
@@ -205,14 +333,13 @@ class AttdmCog(commands.Cog):
                     class SelectCampaignView(View):
                         def __init__(self, cog):
                             super().__init__(timeout=60)
-                            self.cog = cog  # Reference to the AttdmCog instance
-                            self.selected_campaign = None  # Store the selected campaign
+                            self.cog = cog
+                            self.selected_campaign = None
 
                             for campaign in campaigns:
                                 campaign_id, campaign_name, dm_name, _ = campaign
                                 button = Button(label=f"{campaign_name} (DM: {dm_name})", style=discord.ButtonStyle.primary)
 
-                                # Define the callback for the button
                                 async def button_callback(interaction: discord.Interaction, campaign_id=campaign_id):
                                     self.cog.user_sessions[ctx.author.id] = int(campaign_id)
                                     self.selected_campaign = campaign_id
@@ -220,7 +347,7 @@ class AttdmCog(commands.Cog):
                                         f"Campaign '{campaign_name}' selected! (ID: {campaign_id})", ephemeral=True
                                     )
                                     logging.info(f"Campaign '{campaign_name}' selected with ID: {campaign_id}")
-                                    self.stop()  # Stop the view to continue execution
+                                    self.stop()
 
                                 button.callback = button_callback
                                 self.add_item(button)
@@ -229,13 +356,11 @@ class AttdmCog(commands.Cog):
                     view = SelectCampaignView(self)
                     await ctx.send("**Select a campaign:**", view=view)
 
-                    # Wait for the user to make a selection or for the view to timeout
                     await view.wait()
 
                     # Check if a campaign was selected
                     if view.selected_campaign:
-                        # Transition to the action menu after a campaign is selected
-                        await self.show_action_menu(ctx)
+                        await self.main_menu(ctx)
                     else:
                         await ctx.send("No campaign selected. Returning to the main menu.")
                         logging.warning("No campaign selected.")
@@ -301,7 +426,6 @@ class AttdmCog(commands.Cog):
         }
 
         try:
-            # Send the POST request to the API
             logging.info(f"Sending POST request to {url} with payload: {payload}")
             response = requests.post(url, json=payload)
             if response.status_code == 200:
@@ -383,12 +507,12 @@ class AttdmCog(commands.Cog):
         """
         campaign_id = self.user_sessions.get(ctx.author.id)
         if not campaign_id:
-            logging.warning(f"No campaign selected")
+            logging.warning("No campaign selected")
         await self.select_player(ctx)
         character_id = self.user_sessions.get("character_id")
-        url = f"{self.api_base_url}/player/{campaign_id}/delete/?character_id={character_id}"
+        url = f"{self.api_base_url}/players/{campaign_id}/delete/?character_id={character_id}"
         try:
-            response = requests.post(url)
+            response = requests.delete(url)
             if response.status_code == 200:
                 logging.info(f"{character_id} deleted")
                 await ctx.send(f"Delete {character_id}")
@@ -397,6 +521,31 @@ class AttdmCog(commands.Cog):
                 await ctx.send(f"Failed to delete {character_id}")
         except Exception as e:
             logging.error(f"An error occurred while deleting {character_id}: {e}")
+            await ctx.send(f"An error occurred: {e}")
+
+    @commands.command(name="list_pc")
+    async def list_pc(self, ctx):
+        """
+        List the current part characters.
+        Later this will be updated to reflect only living party characters, with an additional solution for the rest
+        """
+        campaign_id = self.user_sessions.get(ctx.author.id)
+        if not campaign_id:
+            logging.warning("No campaign selected")
+        
+        url = f"{self.api_base_url}/players/{campaign_id}/"
+
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                data = response.json()
+                if data:
+                    formatted = "\n".join([f"- {row[0]} (ID: {row[1]}, Class: {row[2]})" for row in data])
+                    await ctx.send(f"**Party Member:**\n{formatted}")
+                else:
+                    await ctx.send("No party members found")
+        except Exception as e:
+            logging.error(f"An error occurred while list party members for {campaign_id}: {e}")
             await ctx.send(f"An error occurred: {e}")
 
     @commands.command(name="roll_loot")
@@ -417,14 +566,12 @@ class AttdmCog(commands.Cog):
             await ctx.send("This command can only be run in the designated DM channel.")
             return
 
-        # Get the currently selected campaign ID for the user
         campaign_id = self.user_sessions.get(ctx.author.id)
         if not campaign_id:
             logging.warning(f"User {ctx.author.id} attempted to roll loot without selecting a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
-        # Get the currently selected player character for the user
         selected_pc = self.user_sessions.get("character_name")
         if not selected_pc:
             logging.warning(f"User {ctx.author.id} attempted to roll loot without selecting a player.")
@@ -449,31 +596,26 @@ class AttdmCog(commands.Cog):
                     await ctx.send("No loot was rolled.")
                     return
 
-                # Create a view with buttons for each loot item
                 view = View()
-                loot_selected = False  # Flag to track if loot was selected
-
+                loot_selected = False
                 for item in loot:
                     button = Button(label=item, style=discord.ButtonStyle.primary)
 
                     # Define the callback for the button
                     async def button_callback(interaction: discord.Interaction, item=item):
-                        self.user_sessions["selected_loot"] = item  # Save the selected loot item
+                        self.user_sessions["selected_loot"] = item
                         logging.info(f"User {ctx.author.id} selected loot item: {item}.")
                         await interaction.response.send_message(f"You selected: {item}", ephemeral=True)
                         nonlocal loot_selected
-                        loot_selected = True  # Set the flag to True
-                        view.stop()  # Stop the view to continue execution
+                        loot_selected = True
+                        view.stop()
 
                     button.callback = button_callback
                     view.add_item(button)
 
-                # Send the message with the buttons
                 urls_message = "\n".join([f"- <{url}>" for url in item_urls])
                 await ctx.send("**Select a loot item:**", view=view)
                 await ctx.send(f"**Loot URLs:**\n{urls_message}")
-
-                # Wait for the user to interact with the buttons
                 await view.wait()
 
                 # Check if loot was selected
@@ -486,8 +628,7 @@ class AttdmCog(commands.Cog):
                 # Confirm the selected loot
                 logging.info(f"User {ctx.author.id} confirmed loot item: {selected_loot}.")
                 await ctx.send(f"You selected the loot item: {selected_loot}")
-                # Send the selected loot to the player channel
-                player_channel_id = os.getenv("PLAYER_CHANNEL")  # Get the player channel ID from the environment variable
+                player_channel_id = os.getenv("PLAYER_CHANNEL")
                 if player_channel_id:
                     player_channel = self.bot.get_channel(int(player_channel_id))
                     if player_channel:
@@ -519,10 +660,8 @@ class AttdmCog(commands.Cog):
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
-        # Define available loot sources
         available_sources = ["DMG'24", "PHB'24", "ERLW", "TCE", "XGE"]
 
-        # Create a view with buttons for each loot source
         class LootSourceButtonView(View):
             def __init__(self, api_base_url, campaign_id, available_sources):
                 super().__init__(timeout=60)
@@ -530,13 +669,11 @@ class AttdmCog(commands.Cog):
                 self.campaign_id = campaign_id
                 self.selected_sources = []
 
-                # Add a button for each loot source
                 for source in available_sources:
                     button = Button(label=source, style=discord.ButtonStyle.primary)
                     button.callback = self.create_button_callback(source)
                     self.add_item(button)
 
-                # Add a submit button
                 self.submit_button = Button(label="Submit", style=discord.ButtonStyle.success)
                 self.submit_button.callback = self.submit_callback
                 self.add_item(self.submit_button)
@@ -556,18 +693,17 @@ class AttdmCog(commands.Cog):
 
             async def submit_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer(ephemeral=True)
+                await ctx.send("Adding loot sources, this can take a minute.")
 
                 if not self.selected_sources:
                     logging.warning(f"User {ctx.author.id} submitted without selecting any loot sources.")
                     await interaction.followup.send("No loot sources selected. Please select at least one.", ephemeral=True)
                     return
 
-                # Prepare the API URL and payload
                 url = f"{self.api_base_url}/loot/{self.campaign_id}/sources/"
                 payload = self.selected_sources
 
                 try:
-                    # Send the POST request to the API
                     logging.info(f"Sending POST request to {url} with payload: {payload}")
                     response = requests.post(url, json=payload)
                     if response.status_code == 200:
@@ -587,14 +723,10 @@ class AttdmCog(commands.Cog):
                         f"An error occurred while adding loot sources: {e}", ephemeral=True
                     )
 
-                # Stop the view after submission
                 self.stop()
 
-        # Create the view and send the message
         view = LootSourceButtonView(self.api_base_url, campaign_id, available_sources)
         await ctx.send("Click on the buttons to select loot sources. Click 'Submit' when done:", view=view)
-
-        # Wait for the view to timeout or be stopped
         await view.wait()
         if not view.is_finished():
             logging.warning(f"User {ctx.author.id} took too long to respond for adding loot sources.")
@@ -613,17 +745,14 @@ class AttdmCog(commands.Cog):
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
-        # Prepare the API URL
         url = f"{self.api_base_url}/loot/{campaign_id}/sources/"
 
         try:
-            # Send the GET request to the API
             logging.info(f"Fetching loot sources for campaign {campaign_id} from {url}.")
             response = requests.get(url)
             if response.status_code == 200:
                 loot_sources = response.json()
                 if loot_sources:
-                    # Format the loot sources into a readable list
                     formatted_sources = "\n".join(f"- {source}" for source in loot_sources)
                     logging.info(f"Loot sources for campaign {campaign_id}: {formatted_sources}")
                     await ctx.send(f"**Loot Sources for Campaign {campaign_id}:**\n{formatted_sources}")

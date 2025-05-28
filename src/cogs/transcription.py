@@ -44,7 +44,7 @@ class TranscribeCog(commands.Cog):
         try:
             result = subprocess.run(cmd, stderr=subprocess.PIPE, text=True)
             output = result.stderr
-            logging.debug(f"ffmpeg silencedetect output: {output}")
+            logging.debug(f"ffmpeg silence detect output: {output}")
             silence_ends = [float(m.group(1)) for m in re.finditer(r'silence_end: (\d+(\.\d+)?)', output)]
             logging.info(f"Detected silence ends at: {silence_ends}")
             return silence_ends
