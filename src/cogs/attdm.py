@@ -23,6 +23,7 @@ class AttdmCog(commands.Cog):
         self.api_base_url = os.getenv("API_URL")
         self.user_sessions = {}
 
+    # Menus
     @commands.command(name="dnd")
     async def dnd(self, ctx):
         """
@@ -134,7 +135,7 @@ class AttdmCog(commands.Cog):
                 self.add_item(self.add_npc_button)
 
                 self.edit_npc_button = Button(label="Edit NPC details", style=discord.ButtonStyle.primary)
-                self.edit_npc_button.callback = self.add_npc_callback
+                self.edit_npc_button.callback = self.edit_npc_callback
                 self.add_item(self.edit_npc_button)
 
                 self.delete_npc_button = Button(label="Delete NPC", style=discord.ButtonStyle.primary)
@@ -161,32 +162,32 @@ class AttdmCog(commands.Cog):
 
             async def add_npc_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.add_lore_item(ctx)
+                await self.cog.add_lore_item(ctx, "npcs")
                 await self.cog.campaign_lore_menu(ctx)
 
             async def edit_npc_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.edit_lore_item(ctx)
+                await self.cog.edit_lore_item(ctx, "npcs")
                 await self.cog.campaign_lore_menu(ctx)
 
             async def delete_npc_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.delete_lore_item(ctx)
+                await self.cog.delete_lore_item(ctx, "npcs")
                 await self.cog.campaign_lore_menu(ctx)
             
             async def add_location_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.add_lore_item(ctx)
+                await self.cog.add_lore_item(ctx, "locations")
                 await self.cog.campaign_lore_menu(ctx)
 
             async def edit_location_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.edit_lore_item(ctx)
+                await self.cog.edit_lore_item(ctx, "locations")
                 await self.cog.campaign_lore_menu(ctx)
 
             async def delete_location_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
-                await self.cog.delete_lore_item(ctx)
+                await self.cog.delete_lore_item(ctx, "locations")
                 await self.cog.campaign_lore_menu(ctx)
 
             async def menu_back_callback(self, interaction: discord.Interaction):
@@ -261,6 +262,8 @@ class AttdmCog(commands.Cog):
 
         await ctx.send("**Campaign Management Menu:**", view=MgmtMenuView(self))
 
+
+    # Campaign Cogs
     @commands.command(name="create_campaign")
     async def create_campaign(self, ctx):
         """
@@ -340,7 +343,7 @@ class AttdmCog(commands.Cog):
                                 campaign_id, campaign_name, dm_name, _ = campaign
                                 button = Button(label=f"{campaign_name} (DM: {dm_name})", style=discord.ButtonStyle.primary)
 
-                                async def button_callback(interaction: discord.Interaction, campaign_id=campaign_id):
+                                async def button_callback(interaction: discord.Interaction, campaign_id=campaign_id, campaign_name=campaign_name):
                                     self.cog.user_sessions[ctx.author.id] = int(campaign_id)
                                     self.selected_campaign = campaign_id
                                     await interaction.response.send_message(
@@ -389,6 +392,8 @@ class AttdmCog(commands.Cog):
             logging.warning(f"User {ctx.author.id} has not selected a campaign.")
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
 
+
+    # Player Character Cogs
     @commands.command(name="add_character")
     async def add_character(self, ctx):
         """
@@ -466,7 +471,7 @@ class AttdmCog(commands.Cog):
                         pc_name, character_id, class_level = pc
                         button = Button(label=f"{pc_name} ({class_level})", style=discord.ButtonStyle.primary)
 
-                        async def button_callback(interaction: discord.Interaction, pc_name=pc_name):
+                        async def button_callback(interaction: discord.Interaction, pc_name=pc_name, character_id=character_id):
                             self.user_sessions["character_name"] = pc_name
                             self.user_sessions["character_id"] = character_id
                             logging.info(f"User {ctx.author.id} selected player '{pc_name}'.")
@@ -516,6 +521,7 @@ class AttdmCog(commands.Cog):
             if response.status_code == 200:
                 logging.info(f"{character_id} deleted")
                 await ctx.send(f"Delete {character_id}")
+                del self.user_sessions["character_id"]
             else:
                 logging.info(f"Failed to delete {character_id}")
                 await ctx.send(f"Failed to delete {character_id}")
@@ -548,6 +554,8 @@ class AttdmCog(commands.Cog):
             logging.error(f"An error occurred while list party members for {campaign_id}: {e}")
             await ctx.send(f"An error occurred: {e}")
 
+
+    # Loot Cogs
     @commands.command(name="roll_loot")
     async def roll_loot(self, ctx):
         """
@@ -572,16 +580,13 @@ class AttdmCog(commands.Cog):
             await ctx.send("You have not selected a campaign yet. Use !select_campaign to select one.")
             return
 
+        await ctx.send("Select a character to roll loot for.")
+        await self.select_player(ctx)
         selected_pc = self.user_sessions.get("character_name")
         if not selected_pc:
-            logging.warning(f"User {ctx.author.id} attempted to roll loot without selecting a player.")
-            await ctx.send("You have not selected a player character yet.")
-            await self.select_player(ctx)
-            selected_pc = self.user_sessions.get("character_name")
-            if not selected_pc:
-                logging.warning(f"User {ctx.author.id} did not select a player after being prompted.")
-                await ctx.send("No player character selected. Aborting loot roll.")
-                return
+            logging.warning(f"User {ctx.author.id} did not select a player after being prompted.")
+            await ctx.send("No player character selected. Aborting loot roll.")
+            return
 
         # Call the roll loot API
         await ctx.send(f"Rolling loot for {selected_pc}")
@@ -763,6 +768,85 @@ class AttdmCog(commands.Cog):
                 error_detail = response.json().get("detail", "Unknown error")
                 logging.error(f"Failed to list loot sources for campaign {campaign_id}: {error_detail}")
                 await ctx.send(f"Failed to list loot sources: {error_detail}")
+        except Exception as e:
+            logging.error(f"An error occurred while listing loot sources for campaign {campaign_id}: {e}")
+            await ctx.send(f"An error occurred while listing loot sources: {e}")
+
+
+    # NPC/Location/Lore Cogs
+    @commands.command(name="add_lore_item")
+    async def add_lore_item(self, ctx, lore_category):
+        """
+        Add a new lore item, either Location or NPC
+        """
+        campaign_id = self.user_sessions.get(ctx.author.id)
+        if not campaign_id:
+            logging.warning("No campaign selected")
+            await ctx.send("No campaign selected")
+            return
+        
+        def check(message):
+            return message.author == ctx.author and message.channel == ctx.channel
+        
+        # Prompt for the Lore item name and description
+        await ctx.send(f"Please enter the {lore_category} name:")
+        try:
+            lore_item_name_msg = await self.bot.wait_for("message", timeout=60.0, check=check)
+            lore_item_name = lore_item_name_msg.content
+        except asyncio.TimeoutError:
+            await ctx.send(f"You took too long to respond. {lore_category} creation canceled.")
+            logging.warning("Creation timed out.")
+            return
+        await ctx.send(f"Please enter the {lore_category} description:")
+        try:
+            lore_item_desc_msg = await self.bot.wait_for("message", timeout=60.0, check=check)
+            lore_item_desc = lore_item_desc_msg.content
+        except asyncio.TimeoutError:
+            await ctx.send(f"You took too long to respond. {lore_category} creation canceled.")
+            logging.warning("Creation timed out.")
+            return
+        
+        url = f"{self.api_base_url}/{lore_category}/"
+        payload = {
+            "campaign_id": campaign_id,
+            "name": lore_item_name,
+            "species": lore_item_desc
+        }
+        try:
+            response = requests.post(url, json=payload)
+            if response.status_code == 200:
+                logging.info(f"{lore_item_name} created successfully")
+                await ctx.send(f"{lore_item_name} created successfully")
+            else:
+                logging.warning(f"Creating item: {lore_item_name} failed. {response.status_code}")
+                await ctx.send(f"Creating item: {lore_item_name} failed")
+        except Exception as e:
+            logging.error(f"An error has occurred creating {lore_item_name}: {e}")
+            await ctx.send(f"An error has occurred creating {lore_item_name}: {e}")
+
+    @commands.command(name="edit_lore_item")
+    async def edit_lore_item(self, ctx, lore_category):
+        """
+        Edit current campaign lore items
+        """
+        campaign_id = self.user_sessions.get(ctx.author.id)
+        if not campaign_id:
+            logging.warning("No campaign selected")
+            await ctx.send("No campaign selected")
+            return
+        
+        url = f"{self.api_base_url}/{lore_category}/{campaign_id}/"
+
+        try:
+            logging.info(f"Listing {lore_category} entries")
+            response = requests.get(url)
+            if response.status_code == 200:
+                lore_items = response.json()
+                formatted_item = "\n".join(f"- {item}" for item in lore_items)
+                await ctx.send(f"**{lore_category} entries for {campaign_id}:**\n{formatted_item}")
+            else:
+                logging.info(f"No {lore_category} found")
+                await ctx.send(f"No {lore_category} found")
         except Exception as e:
             logging.error(f"An error occurred while listing loot sources for campaign {campaign_id}: {e}")
             await ctx.send(f"An error occurred while listing loot sources: {e}")
