@@ -86,6 +86,11 @@ class AttdmCog(commands.Cog):
                 self.roll_loot_button.callback = self.roll_loot_callback
                 self.add_item(self.roll_loot_button)
 
+                # List Party Passive Stats
+                self.list_stats_button = Button(label="List Passive Stats", style=discord.ButtonStyle.primary)
+                self.list_stats_button.callback = self.list_stats_callback
+                self.add_item(self.list_stats_button)
+
                 # NPC and Location Menu
                 self.lore_menu_button = Button(label="NPC & Locations Menu", style=discord.ButtonStyle.primary)
                 self.lore_menu_button.callback = self.lore_menu_callback
@@ -104,6 +109,11 @@ class AttdmCog(commands.Cog):
             async def roll_loot_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
                 await self.cog.roll_loot(ctx)
+                await self.cog.main_menu(ctx)
+
+            async def list_stats_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.list_passive_stats(ctx)
                 await self.cog.main_menu(ctx)
 
             async def lore_menu_callback(self, interaction: discord.Interaction):
@@ -221,6 +231,10 @@ class AttdmCog(commands.Cog):
                 self.list_party_button.callback = self.list_party_callback
                 self.add_item(self.list_party_button)
 
+                self.update_character_info_button = Button(label="Update Party Character Sheets", style=discord.ButtonStyle.primary)
+                self.update_character_info_button.callback = self.update_character_info_callback
+                self.add_item(self.update_character_info_button)
+
                 self.delete_character_button = Button(label="Delete Character", style=discord.ButtonStyle.danger)
                 self.delete_character_button.callback = self.delete_character_callback
                 self.add_item(self.delete_character_button)
@@ -249,6 +263,11 @@ class AttdmCog(commands.Cog):
                 await interaction.response.defer()
                 await self.cog.list_pc(ctx)
                 await self.cog.campaign_mgmt_menu(ctx)
+
+            async def update_character_info_callback(self, interaction: discord.Interaction):
+                await interaction.response.defer()
+                await self.cog.update_party_sheets(ctx)
+                await self.cog.main_menu(ctx)
 
             async def delete_character_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
@@ -554,6 +573,86 @@ class AttdmCog(commands.Cog):
             logging.error(f"An error occurred while list party members for {campaign_id}: {e}")
             await ctx.send(f"An error occurred: {e}")
 
+    @commands.command(name="list_passive_stats")
+    async def list_passive_stats(self, ctx):
+        """
+        List the party's passive stats for either Perception, Investigation, or Insight
+        """
+        campaign_id = self.user_sessions.get(ctx.author.id)
+        if not campaign_id:
+            logging.warning("No campaign selected")
+        
+        class PassiveStatSelectView(View):
+            def __init__(self):
+                super().__init__(timeout=30)
+                self.selected_passive = None
+
+                for stat in ["perception", "investigation", "insight"]:
+                    button = Button(label=stat.capitalize(), style=discord.ButtonStyle.primary)
+                    button.callback = self.selection_callback(stat)
+                    self.add_item(button)
+                
+            def selection_callback(self, stat):
+                async def callback(interaction: discord.Interaction):
+                    self.selected_passive = stat
+                    await interaction.response.defer()
+                    self.stop()
+                return callback
+            
+        view = PassiveStatSelectView()
+        await ctx.send("Select the passive stat:", view=view)
+        await view.wait()
+
+        selected_passive = view.selected_passive
+        if not selected_passive:
+            await ctx.send("No passive stat selected.")
+            logging.warning("No passive stat selected, aborting.")
+            return
+        
+        url = f"{self.api_base_url}/players/{campaign_id}/passive-stats/?stat_name={selected_passive}"
+
+        try:
+            response = requests.get(url)
+            if response.status_code == 200:
+                stats = response.json()
+                if stats:
+                    formatted_stats = "\n".join([f"- {row[0]}: {row[1]}" for row in stats])
+                    await ctx.send(f"**Party {selected_passive.capitalize()} Stats:**\n{formatted_stats}")
+                else:
+                    await ctx.send(f"No stats found for {selected_passive}.")
+            else:
+                error_detail = response.json().get("detail", "Unknown error")
+                await ctx.send(f"Failed to list stats: {error_detail}")
+                logging.error(f"Failed to list stats: {error_detail}")
+        except Exception as e:
+            logging.error(f"An error occurred while listing passive stats: {e}")
+            await ctx.send(f"Error: {e}")
+
+    @commands.command(name="update_party_sheets")
+    async def update_party_sheets(self, ctx):
+        """
+        Update the character sheet information for the entire party. 
+        This is helpful after leveling up to correct any changes.
+        """
+        campaign_id = self.user_sessions.get(ctx.author.id)
+        if not campaign_id:
+            logging.warning(f"Command attempted in incorrect channel: {ctx.channel.id}")
+            await ctx.send("This command can only be run in the designated DM channel.")
+            return
+        
+        url = f"{self.api_base_url}/players/{campaign_id}/update/"
+
+        try:
+            response = requests.put(url)
+            if response.status_code == 200:
+                await ctx.send("Updating the party's character info.")
+                return
+            else:
+                await ctx.send("Error updating the party.")
+                logging.error(f"Error updating party sheets. {response.status_code}: {response.json}")
+        except Exception as e:
+            logging.error(f"An error occurred updating character sheets. {e}")
+            await ctx.send(f"Error: {e}")
 
     # Loot Cogs
     @commands.command(name="roll_loot")
