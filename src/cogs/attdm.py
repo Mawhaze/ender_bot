@@ -247,7 +247,7 @@ class AttdmCog(commands.Cog):
             async def add_loot_source_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
                 await self.cog.add_loot_source(ctx)
-                await self.cog.capaign_mgmt_menu(ctx)
+                await self.cog.campaign_mgmt_menu(ctx)
 
             async def list_loot_sources_callback(self, interaction: discord.Interaction):
                 await interaction.response.defer()
