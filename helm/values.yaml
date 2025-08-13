@@ -19,7 +19,7 @@ env:
 
 
 imagePullSecrets:
-  - name: docker-auth-secret
+  - name: docker-auth
 
 nfs:
   enabled: true
